@@ -121,8 +121,38 @@ def get_body_age(report_id: int, current_user: User = Depends(get_current_user),
     from ..models.report import BodyAge
     r = _report_or_404(report_id, current_user, db)
     ba = db.query(BodyAge).filter(BodyAge.report_id == r.id).first()
+
+    # Auto-calculate on first fetch if findings exist but no body age record yet
+    if not ba:
+        findings = db.query(Finding).filter(Finding.report_id == r.id).all()
+        if findings:
+            try:
+                from ..services.body_age_service import calculate_pheno_age, calculate_zen_age
+                import asyncio
+                pheno_result = calculate_pheno_age(findings, r.patient_age)
+                zen_result = asyncio.run(calculate_zen_age(r, findings, pheno_result))
+                ba = BodyAge(
+                    report_id=r.id,
+                    chronological_age=pheno_result.get("chronological_age"),
+                    pheno_age=pheno_result.get("pheno_age"),
+                    zen_age=zen_result.get("zen_age"),
+                    age_difference=zen_result.get("age_difference"),
+                    interpretation=zen_result.get("interpretation"),
+                    markers_used=pheno_result.get("markers_found", []),
+                    markers_missing=pheno_result.get("markers_missing", []),
+                    confidence=zen_result.get("confidence"),
+                    sub_ages=zen_result.get("sub_ages", {}),
+                )
+                db.add(ba)
+                db.commit()
+                db.refresh(ba)
+            except Exception:
+                # If auto-calculation fails, return None gracefully
+                return None
+
     if not ba:
         return None
+
     return {
         "chronological_age": ba.chronological_age,
         "pheno_age": ba.pheno_age,
