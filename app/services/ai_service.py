@@ -1,8 +1,11 @@
 """Zeno AI — ZenLife's health intelligence assistant, powered by Claude."""
+import base64
+import json
 from anthropic import Anthropic
 from sqlalchemy.orm import Session
 from ..models.report import Report, Finding, OrganScore, ChatMessage
 from ..core.config import get_settings
+from .section_params import SECTION_PARAMETERS, SECTION_META
 
 settings = get_settings()
 
@@ -102,3 +105,90 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
     db.commit()
 
     return reply
+
+
+def extract_report_parameters(section_type: str, file_b64: str, file_mime: str) -> dict:
+    """
+    Use Claude vision/document to extract parameter values from an uploaded report file.
+    Returns {param_name: {value, unit, normal, severity, clinical_findings, recommendations}}.
+    Also classifies each value as critical/major/minor/normal and generates AI clinical findings + recommendations.
+    """
+    if not settings.anthropic_api_key:
+        return {"error": "No API key configured"}
+
+    params = SECTION_PARAMETERS.get(section_type, [])
+    param_list = "\n".join(
+        f'- "{p["name"]}" (unit: {p["unit"] or "text"}, normal: {p["normal"]})'
+        for p in params
+    )
+    section_label = SECTION_META.get(section_type, {}).get("label", section_type)
+
+    prompt = f"""You are a senior medical data extraction AI. Analyse this {section_label} report image/document.
+
+Extract the value for EVERY parameter listed below. For each parameter:
+1. Extract the exact value as shown in the report (or "Not Found" if absent)
+2. Classify severity as one of: critical / major / minor / normal
+   - critical = urgently abnormal, needs immediate medical attention
+   - major = significantly abnormal, needs medical follow-up soon
+   - minor = mildly abnormal, worth monitoring
+   - normal = within healthy range
+3. Write 1-2 sentence clinical findings explaining what this value means clinically
+4. Write 1 sentence recommendation for this specific finding
+
+Parameters to extract:
+{param_list}
+
+Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
+{{
+  "Parameter Name": {{
+    "value": "extracted value or Not Found",
+    "severity": "critical|major|minor|normal",
+    "clinical_findings": "...",
+    "recommendations": "..."
+  }},
+  ...
+}}"""
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+
+    if file_mime == "application/pdf":
+        content = [
+            {
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": file_b64,
+                },
+            },
+            {"type": "text", "text": prompt},
+        ]
+    else:
+        content = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": file_mime,
+                    "data": file_b64,
+                },
+            },
+            {"type": "text", "text": prompt},
+        ]
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": content}],
+    )
+
+    raw = response.content[0].text.strip()
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"_parse_error": raw[:500]}

@@ -1,15 +1,18 @@
 """Admin API — local dev only. Allows creating patients, orders, reports, and findings via UI."""
+import base64
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from ..core.database import get_db
 from ..models.user import User
 from ..models.order import Order
-from ..models.report import Report, OrganScore, Finding, HealthPriority, ConsultationNote
+from ..models.report import Report, OrganScore, Finding, HealthPriority, ConsultationNote, ReportSection
 from ..services.lab_classifier import parse_excel_lab_results, generate_template_excel, MARKERS, classify_severity
+from ..services.section_params import SECTION_PARAMETERS, SECTION_META
+from ..services.ai_service import extract_report_parameters
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -278,3 +281,168 @@ def get_report_detail(report_id: int, db: Session = Depends(get_db)):
         "priorities": [{"id": p.id, "title": p.title, "priority_order": p.priority_order} for p in priorities],
         "notes": [{"id": n.id, "note_type": n.note_type, "author": n.author} for n in notes],
     }
+
+
+# ── Report Sections ───────────────────────────────────────────────────────────
+
+@router.get("/section-params")
+def get_section_params():
+    """Return all section types with their parameter definitions."""
+    return {
+        "sections": SECTION_META,
+        "parameters": {k: v for k, v in SECTION_PARAMETERS.items()},
+    }
+
+
+@router.get("/reports/{report_id}/sections")
+def get_all_sections(report_id: int, db: Session = Depends(get_db)):
+    """Get all saved sections for a report."""
+    sections = db.query(ReportSection).filter(ReportSection.report_id == report_id).all()
+    return {
+        s.section_type: {
+            "key_findings": s.key_findings,
+            "parameters": s.parameters or {},
+            "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+        }
+        for s in sections
+    }
+
+
+@router.get("/reports/{report_id}/sections/{section_type}")
+def get_section(report_id: int, section_type: str, db: Session = Depends(get_db)):
+    """Get a single section with its saved parameters."""
+    section = (
+        db.query(ReportSection)
+        .filter(ReportSection.report_id == report_id, ReportSection.section_type == section_type)
+        .first()
+    )
+    param_defs = SECTION_PARAMETERS.get(section_type, [])
+    saved = section.parameters or {} if section else {}
+    return {
+        "section_type": section_type,
+        "key_findings": section.key_findings if section else "",
+        "parameters": saved,
+        "param_definitions": param_defs,
+        "meta": SECTION_META.get(section_type, {}),
+    }
+
+
+class SaveSectionBody(BaseModel):
+    key_findings: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = None
+
+
+@router.put("/reports/{report_id}/sections/{section_type}")
+def save_section(report_id: int, section_type: str, body: SaveSectionBody, db: Session = Depends(get_db)):
+    """Save (create or update) a report section with its parameters and key findings."""
+    if section_type not in SECTION_PARAMETERS:
+        raise HTTPException(status_code=400, detail=f"Unknown section type: {section_type}")
+    section = (
+        db.query(ReportSection)
+        .filter(ReportSection.report_id == report_id, ReportSection.section_type == section_type)
+        .first()
+    )
+    if section:
+        if body.key_findings is not None:
+            section.key_findings = body.key_findings
+        if body.parameters is not None:
+            section.parameters = body.parameters
+        section.updated_at = datetime.utcnow()
+    else:
+        section = ReportSection(
+            report_id=report_id,
+            section_type=section_type,
+            key_findings=body.key_findings or "",
+            parameters=body.parameters or {},
+        )
+        db.add(section)
+    db.commit()
+    db.refresh(section)
+    return {"ok": True, "section_type": section_type}
+
+
+@router.post("/reports/{report_id}/sections/{section_type}/extract")
+async def extract_section(report_id: int, section_type: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload a report file, extract parameter values via Claude AI, and save to section."""
+    if section_type not in SECTION_PARAMETERS:
+        raise HTTPException(status_code=400, detail=f"Unknown section type: {section_type}")
+
+    content = await file.read()
+    file_b64 = base64.b64encode(content).decode()
+    mime = file.content_type or "image/jpeg"
+
+    extracted = extract_report_parameters(section_type, file_b64, mime)
+
+    if "_parse_error" in extracted or "error" in extracted:
+        raise HTTPException(status_code=422, detail=extracted.get("_parse_error") or extracted.get("error"))
+
+    # Save extracted data to the section
+    section = (
+        db.query(ReportSection)
+        .filter(ReportSection.report_id == report_id, ReportSection.section_type == section_type)
+        .first()
+    )
+    if section:
+        section.parameters = extracted
+        section.updated_at = datetime.utcnow()
+    else:
+        section = ReportSection(
+            report_id=report_id,
+            section_type=section_type,
+            parameters=extracted,
+        )
+        db.add(section)
+    db.commit()
+    return {"ok": True, "extracted": extracted}
+
+
+@router.post("/reports/{report_id}/sections/{section_type}/import-findings")
+def import_section_as_findings(report_id: int, section_type: str, db: Session = Depends(get_db)):
+    """Convert all saved section parameters into Finding records on the report."""
+    section = (
+        db.query(ReportSection)
+        .filter(ReportSection.report_id == report_id, ReportSection.section_type == section_type)
+        .first()
+    )
+    if not section or not section.parameters:
+        raise HTTPException(status_code=404, detail="No saved parameters for this section")
+
+    param_defs = {p["name"]: p for p in SECTION_PARAMETERS.get(section_type, [])}
+    created = 0
+    for param_name, data in section.parameters.items():
+        if isinstance(data, dict):
+            value = data.get("value", "")
+        else:
+            value = str(data)
+
+        if not value or value == "Not Found":
+            continue
+
+        p = param_defs.get(param_name, {})
+        severity = data.get("severity", "normal") if isinstance(data, dict) else "normal"
+        clinical = data.get("clinical_findings", "") if isinstance(data, dict) else ""
+        recs = data.get("recommendations", "") if isinstance(data, dict) else ""
+
+        # Skip if finding already exists for this report+name
+        exists = db.query(Finding).filter(Finding.report_id == report_id, Finding.name == param_name).first()
+        if exists:
+            exists.value = str(value)
+            exists.severity = severity
+            exists.clinical_findings = clinical
+            exists.recommendations = recs
+        else:
+            db.add(Finding(
+                report_id=report_id,
+                test_type=section_type,
+                name=param_name,
+                severity=severity,
+                value=str(value),
+                normal_range=p.get("normal", ""),
+                unit=p.get("unit", ""),
+                clinical_findings=clinical,
+                recommendations=recs,
+            ))
+            created += 1
+
+    db.commit()
+    return {"ok": True, "imported": created}

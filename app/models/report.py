@@ -21,6 +21,7 @@ class Report(Base):
     priorities = relationship("HealthPriority", back_populates="report")
     notes = relationship("ConsultationNote", back_populates="report")
     chat_messages = relationship("ChatMessage", back_populates="report")
+    sections = relationship("ReportSection", back_populates="report")
 
 
 class OrganScore(Base):
@@ -99,3 +100,17 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     report = relationship("Report", back_populates="chat_messages")
+
+
+class ReportSection(Base):
+    """Stores raw report data per section type (blood, mri, dexa, usg, calcium_score, ecg, chest_xray)."""
+    __tablename__ = "report_sections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(Integer, ForeignKey("reports.id"), nullable=False)
+    section_type = Column(String(50), nullable=False)  # blood/mri/dexa/usg/calcium_score/ecg/chest_xray
+    key_findings = Column(Text, nullable=True)
+    parameters = Column(JSON, nullable=True, default=dict)  # {param_name: {value, unit, normal}}
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    report = relationship("Report", back_populates="sections")
