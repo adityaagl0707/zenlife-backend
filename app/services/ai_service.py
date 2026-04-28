@@ -9,22 +9,33 @@ from .section_params import SECTION_PARAMETERS, SECTION_META
 
 settings = get_settings()
 
-ZENO_SYSTEM_PROMPT = """You are Zeno, a senior physician at ZenLife with decades of clinical experience across cardiology, endocrinology, and internal medicine.
+ZENO_SYSTEM_PROMPT = """You are Zeno, a senior physician at ZenLife with decades of clinical experience across cardiology, endocrinology, internal medicine, and preventive health.
+
+Your role:
+You are the patient's personal health guide — not an alarm system. Your job is to help them understand their whole health picture, not just fixate on whatever is most abnormal. A patient's health is the sum of everything: what's going well, what needs watching, and what needs action. Balance all three.
 
 Your communication style:
-- Talk like a caring, trusted doctor sitting across the table from a patient — warm, human, and direct.
-- Use simple everyday language. Never use medical jargon without immediately explaining it in plain words.
-- Keep answers SHORT and CRISP. 3-5 sentences max per response. No bullet-point walls.
-- Lead with what matters most to the patient, not clinical facts.
-- Show genuine empathy. Acknowledge how a finding might feel before explaining it.
-- Create a personal bond — remember the patient's name, reference their specific numbers.
-- End every response with one clear, doable next step the patient can act on today.
-- Never diagnose. Explain what a finding likely means and why it matters for their life.
-- When something is serious, say so honestly but kindly — don't sugarcoat, but don't alarm.
+- Warm, conversational, and human — like a trusted doctor having a real conversation, not reading a report out loud.
+- Use plain language. When you must use a medical term, explain it immediately in everyday words.
+- Be BALANCED. Do not make every answer about the single worst finding. Acknowledge good results too — patients need to know what they're doing right.
+- Be appropriately thorough. A good response is 4-8 sentences. Cover what the patient asked about with enough depth to be genuinely useful, but don't write an essay.
+- Reference the patient's actual numbers and name — make it personal, not generic.
+- Show empathy. Acknowledge what a result might feel like emotionally before explaining the clinical meaning.
+- End with one clear, practical next step the patient can act on — diet, lifestyle, follow-up, or peace of mind.
+- Never diagnose. Explain what a finding likely means and why it matters for how they live and feel.
+- When something genuinely needs attention, say so clearly and kindly — but don't repeat the same concern in every response.
+- When something is fine or good, say so with confidence. Relief and reassurance are equally valuable to a patient.
 
-Example tone: "Your LDL is a bit high — think of it as too much 'bad' fat floating in your blood. The good news is this is very manageable with a few tweaks. Let's talk about what you can do this week."
+What to avoid:
+- Do not open every message by highlighting the most critical finding unless the patient specifically asked about it.
+- Do not give bullet-point lists of problems. Weave the picture together in natural paragraphs.
+- Do not be alarmist. Severity classifications are clinical tools — translate them into real-life impact for this specific person.
+- Do not give the same advice repeatedly across a conversation. Read the chat history and build on it.
 
-You are NOT a replacement for in-person care. If something needs urgent attention, say so clearly and warmly."""
+Example tone:
+"Your liver markers are actually looking really solid — AST and ALT are both well within range, which tells me your liver is handling things well. Your cholesterol picture is a little mixed: HDL (the protective kind) is good, but LDL is nudging slightly high. That's not urgent, but worth addressing over the next few months with some simple food swaps. Your kidney function is perfectly fine. Overall, you're in a better place than many people your age — a few targeted changes and your next scan will look even stronger."
+
+You are NOT a replacement for in-person care. When something truly needs a specialist or urgent attention, say so warmly and directly."""
 
 
 def build_report_context(report: Report, db: Session) -> str:
@@ -32,33 +43,64 @@ def build_report_context(report: Report, db: Session) -> str:
     organs = db.query(OrganScore).filter(OrganScore.report_id == report.id).all()
 
     critical = [f for f in findings if f.severity == "critical"]
-    major = [f for f in findings if f.severity == "major"]
-    minor = [f for f in findings if f.severity == "minor"]
+    major    = [f for f in findings if f.severity == "major"]
+    minor    = [f for f in findings if f.severity == "minor"]
+    normal   = [f for f in findings if f.severity == "normal"]
+
+    def fmt_finding(f, include_clinical=False):
+        line = f"  • {f.name}: {f.value or 'N/A'} {f.unit or ''} (Normal: {f.normal_range or 'N/A'})"
+        if include_clinical and f.clinical_findings:
+            line += f"\n    → {f.clinical_findings}"
+        return line
 
     lines = [
-        f"Patient: {report.order.patient_name}, Age: {report.order.patient_age}, Gender: {report.order.patient_gender}",
-        f"Overall Severity: {report.overall_severity.upper()}",
-        f"ZenCoverage™ Index: {report.coverage_index}%",
+        "=== PATIENT OVERVIEW ===",
+        f"Name: {report.order.patient_name}",
+        f"Age: {report.order.patient_age}  |  Gender: {report.order.patient_gender}",
         f"Report Date: {report.report_date.strftime('%d %b %Y')}",
+        f"Overall Health Status: {report.overall_severity.upper()}",
+        f"Scan Coverage: {report.coverage_index}%",
         "",
-        "=== CRITICAL FINDINGS ===",
+        "=== ORGAN SYSTEM SUMMARY ===",
+        "(Use this for the big-picture view of how each body system is doing)",
+    ]
+    for o in organs:
+        lines.append(
+            f"  • {o.organ_name}: {o.severity.upper()} — {o.risk_label} "
+            f"({o.critical_count} critical / {o.major_count} major / {o.minor_count} minor / {o.normal_count} normal markers)"
+        )
+
+    lines += [
+        "",
+        f"=== WHAT'S WORKING WELL — NORMAL FINDINGS ({len(normal)} markers) ===",
+        "(These are healthy. Acknowledge them positively when relevant.)",
+    ]
+    for f in normal:
+        lines.append(f"  • {f.name}: {f.value or 'N/A'} {f.unit or ''}")
+
+    lines += [
+        "",
+        f"=== NEEDS MONITORING — MINOR FINDINGS ({len(minor)} markers) ===",
+        "(Mildly outside range — worth mentioning but not alarming)",
+    ]
+    for f in minor:
+        lines.append(fmt_finding(f))
+
+    lines += [
+        "",
+        f"=== NEEDS ATTENTION — MAJOR FINDINGS ({len(major)} markers) ===",
+        "(Significantly abnormal — important to address, not immediately dangerous)",
+    ]
+    for f in major:
+        lines.append(fmt_finding(f, include_clinical=True))
+
+    lines += [
+        "",
+        f"=== URGENT — CRITICAL FINDINGS ({len(critical)} markers) ===",
+        "(Urgently abnormal — be honest but calm; recommend specialist follow-up)",
     ]
     for f in critical:
-        lines.append(f"- {f.name}: {f.value or 'N/A'} {f.unit or ''} (Normal: {f.normal_range or 'N/A'})")
-        if f.clinical_findings:
-            lines.append(f"  Clinical: {f.clinical_findings}")
-
-    lines.append("\n=== MAJOR FINDINGS ===")
-    for f in major:
-        lines.append(f"- {f.name}: {f.value or 'N/A'} {f.unit or ''} (Normal: {f.normal_range or 'N/A'})")
-
-    lines.append("\n=== MINOR FINDINGS ===")
-    for f in minor:
-        lines.append(f"- {f.name}: {f.value or 'N/A'} {f.unit or ''} (Normal: {f.normal_range or 'N/A'})")
-
-    lines.append("\n=== ORGAN SCORES ===")
-    for o in organs:
-        lines.append(f"- {o.organ_name}: {o.severity.upper()} — {o.risk_label}")
+        lines.append(fmt_finding(f, include_clinical=True))
 
     return "\n".join(lines)
 
@@ -92,7 +134,7 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1024,
+        max_tokens=1536,
         system=system,
         messages=messages,
     )
