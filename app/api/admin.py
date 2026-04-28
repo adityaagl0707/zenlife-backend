@@ -1,6 +1,6 @@
 """Admin API — local dev only. Allows creating patients, orders, reports, and findings via UI."""
 import base64
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -186,14 +186,56 @@ def delete_organ(report_id: int, organ_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+def _trigger_body_age(report_id: int, db: Session) -> None:
+    """Background helper: (re)calculate body age whenever findings change."""
+    try:
+        from ..services.body_age_service import calculate_pheno_age, calculate_zen_age
+        from ..models.report import BodyAge
+
+        report = db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            return
+
+        findings = db.query(Finding).filter(Finding.report_id == report_id).all()
+        if not findings:
+            return
+
+        pheno_result = calculate_pheno_age(findings)
+        zen_result = calculate_zen_age(report, findings, pheno_result)
+
+        actual_age = report.order.patient_age if report.order else None
+        zen_age = zen_result.get("zen_age")
+        age_diff = round(zen_age - actual_age, 1) if (zen_age and actual_age) else zen_result.get("age_difference", 0)
+
+        existing = db.query(BodyAge).filter(BodyAge.report_id == report_id).first()
+        ba = existing if existing else BodyAge(report_id=report_id)
+        if not existing:
+            db.add(ba)
+
+        ba.chronological_age = actual_age
+        ba.pheno_age = pheno_result.get("pheno_age")
+        ba.zen_age = zen_age
+        ba.age_difference = age_diff
+        ba.interpretation = zen_result.get("interpretation", "")
+        ba.markers_used = pheno_result.get("markers_found", [])
+        ba.markers_missing = pheno_result.get("markers_missing", [])
+        ba.confidence = zen_result.get("confidence", "medium")
+        ba.sub_ages = zen_result.get("sub_ages", {})
+
+        db.commit()
+    except Exception:
+        pass  # Never fail the response due to body-age errors
+
+
 @router.post("/reports/{report_id}/findings")
-def add_finding(report_id: int, body: CreateFinding, db: Session = Depends(get_db)):
+def add_finding(report_id: int, body: CreateFinding, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     if not db.query(Report).filter(Report.id == report_id).first():
         raise HTTPException(status_code=404, detail="Report not found")
     finding = Finding(report_id=report_id, **body.model_dump())
     db.add(finding)
     db.commit()
     db.refresh(finding)
+    background_tasks.add_task(_trigger_body_age, report_id, db)
     return {"id": finding.id}
 
 
@@ -398,7 +440,7 @@ async def extract_section(report_id: int, section_type: str, file: UploadFile = 
 
 
 @router.post("/reports/{report_id}/sections/{section_type}/import-findings")
-def import_section_as_findings(report_id: int, section_type: str, db: Session = Depends(get_db)):
+def import_section_as_findings(report_id: int, section_type: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Convert all saved section parameters into Finding records on the report."""
     section = (
         db.query(ReportSection)
@@ -446,6 +488,7 @@ def import_section_as_findings(report_id: int, section_type: str, db: Session = 
             created += 1
 
     db.commit()
+    background_tasks.add_task(_trigger_body_age, report_id, db)
     return {"ok": True, "imported": created}
 
 
