@@ -36,10 +36,10 @@ def get_report(report_id: int, current_user: User = Depends(get_current_user), d
         "next_visit": r.next_visit.strftime("%d %b %Y") if r.next_visit else None,
         "summary": r.summary,
         "finding_counts": {
-            "critical": sum(o.critical_count for o in r.organ_scores),
-            "major": sum(o.major_count for o in r.organ_scores),
-            "minor": sum(o.minor_count for o in r.organ_scores),
-            "normal": sum(o.normal_count for o in r.organ_scores),
+            "critical": db.query(Finding).filter(Finding.report_id == r.id, Finding.severity == "critical").count(),
+            "major": db.query(Finding).filter(Finding.report_id == r.id, Finding.severity == "major").count(),
+            "minor": db.query(Finding).filter(Finding.report_id == r.id, Finding.severity == "minor").count(),
+            "normal": db.query(Finding).filter(Finding.report_id == r.id, Finding.severity == "normal").count(),
         },
     }
 
