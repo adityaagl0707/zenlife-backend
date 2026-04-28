@@ -116,6 +116,26 @@ def get_priorities(report_id: int, current_user: User = Depends(get_current_user
     ]
 
 
+@router.get("/{report_id}/body-age")
+def get_body_age(report_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from ..models.report import BodyAge
+    r = _report_or_404(report_id, current_user, db)
+    ba = db.query(BodyAge).filter(BodyAge.report_id == r.id).first()
+    if not ba:
+        return None
+    return {
+        "chronological_age": ba.chronological_age,
+        "pheno_age": ba.pheno_age,
+        "zen_age": ba.zen_age,
+        "age_difference": ba.age_difference,
+        "confidence": ba.confidence,
+        "interpretation": ba.interpretation,
+        "markers_used": ba.markers_used or [],
+        "markers_missing": ba.markers_missing or [],
+        "sub_ages": ba.sub_ages or {},
+    }
+
+
 @router.get("/{report_id}/notes")
 def get_notes(report_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     r = _report_or_404(report_id, current_user, db)

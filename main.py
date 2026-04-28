@@ -8,6 +8,8 @@ from app.core.database import Base, engine, SessionLocal
 from app.core.config import get_settings
 from app.api import auth, orders, reports, chat, admin
 from app.services.seed_service import seed_demo
+# Import all models so Base.metadata.create_all covers every table
+import app.models.report  # noqa: F401 — registers Report, BodyAge, etc. with Base
 
 settings = get_settings()
 

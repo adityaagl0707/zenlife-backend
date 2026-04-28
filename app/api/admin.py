@@ -509,6 +509,66 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
     return {"ok": True, "organs": len(ORGAN_DEFINITIONS)}
 
 
+@router.post("/reports/{report_id}/calculate-body-age")
+def calculate_body_age_endpoint(report_id: int, db: Session = Depends(get_db)):
+    """Calculate body age using PhenoAge formula + Claude AI synthesis."""
+    from ..services.body_age_service import calculate_pheno_age, calculate_zen_age
+    from ..models.report import BodyAge
+
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    findings = db.query(Finding).filter(Finding.report_id == report_id).all()
+    actual_age = report.order.patient_age if report.order else None
+
+    # Step 1: PhenoAge
+    pheno_result = calculate_pheno_age(findings)
+
+    # Step 2: ZenAge (Claude AI)
+    zen_result = calculate_zen_age(report, findings, pheno_result)
+
+    zen_age = zen_result.get("zen_age")
+    if zen_age and actual_age:
+        age_diff = round(zen_age - actual_age, 1)
+    else:
+        age_diff = zen_result.get("age_difference", 0)
+
+    # Upsert BodyAge record
+    existing = db.query(BodyAge).filter(BodyAge.report_id == report_id).first()
+    if existing:
+        ba = existing
+    else:
+        ba = BodyAge(report_id=report_id)
+        db.add(ba)
+
+    ba.chronological_age = actual_age
+    ba.pheno_age = pheno_result.get("pheno_age")
+    ba.zen_age = zen_age
+    ba.age_difference = age_diff
+    ba.interpretation = zen_result.get("interpretation", "")
+    ba.markers_used = pheno_result.get("markers_found", [])
+    ba.markers_missing = pheno_result.get("markers_missing", [])
+    ba.confidence = zen_result.get("confidence", "medium")
+    ba.sub_ages = zen_result.get("sub_ages", {})
+
+    db.commit()
+    db.refresh(ba)
+
+    return {
+        "ok": True,
+        "chronological_age": ba.chronological_age,
+        "pheno_age": ba.pheno_age,
+        "zen_age": ba.zen_age,
+        "age_difference": ba.age_difference,
+        "confidence": ba.confidence,
+        "interpretation": ba.interpretation,
+        "markers_used": ba.markers_used,
+        "markers_missing": ba.markers_missing,
+        "sub_ages": ba.sub_ages,
+    }
+
+
 @router.post("/reports/{report_id}/generate-priorities")
 def auto_generate_priorities(report_id: int, db: Session = Depends(get_db)):
     """Use Claude to generate health priorities from findings and organ scores."""

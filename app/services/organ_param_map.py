@@ -27,6 +27,7 @@ ORGAN_DEFINITIONS = [
             "gynoid fat", "visceral fat mass", "ldl cholesterol", "fasting blood glucose test",
             "total cholesterol", "hdl cholesterol", "triglycerides", "non-hdl cholesterol",
             "cortisol", "dhea", "vldl cholesterol", "triglycerides / hdl",
+            "glucose", "fasting glucose", "fasting blood sugar", "fbs",
             "total cholesterol / hdl", "hdl/ldl ratio", "android:gynoid ratio", "android fat",
             "bmi", "body fat", "tpo", "insulin", "hba1c", "ketone", "tsh",
             "thyroxine (t4) free", "triiodothyronine (t3) free", "average blood glucose",
@@ -46,6 +47,7 @@ ORGAN_DEFINITIONS = [
             "ast", "total protein", "globulin", "alt", "abdominal wall", "ggt",
             "bilirubin (indirect)", "serum albumin/globulin", "albumin", "total bilirubin",
             "bilirubin direct", "alp", "lipase", "amylase", "ast/alt ratio",
+            "alkaline phosphatase", "alk phos",
             "mesentric vessels", "peritoneum", "retroperitoneum", "cardia", "peri-rectal fat",
             "rectum & rectosigmoid", "perisplenic region", "splenic vessels", "peripancreatic region",
             "liver parenchyma", "extrahepatic biliary tree", "liver and digestive health: degenerative",
@@ -103,7 +105,8 @@ ORGAN_DEFINITIONS = [
             "homocysteine levels", "basophils", "monocytes", "lymphocytes", "eosinophils",
             "ige", "neck lymphnodes", "basophils - count", "monocytes - count",
             "lymphocytes - count", "eosinophils - count", "hs-crp", "neutrophils",
-            "neutrophils - count",
+            "neutrophils - count", "lymphocyte %", "lymphocyte percentage", "lymphocytes %",
+            "lymph %", "crp", "c-reactive protein", "c reactive protein",
         ],
     },
     {
@@ -122,6 +125,7 @@ ORGAN_DEFINITIONS = [
             "lymphocytes - count", "eosinophils - count", "vitamin b12", "neutrophils",
             "magnesium, rbc", "ferritin", "neutrophils - count", "rsmi", "lean mass",
             "peritoneum", "general health, blood and nutrients",
+            "lymphocyte %", "lymphocyte percentage", "lymphocytes %", "lymph %",
         ],
     },
     {

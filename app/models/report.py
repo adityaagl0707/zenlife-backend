@@ -22,6 +22,7 @@ class Report(Base):
     notes = relationship("ConsultationNote", back_populates="report")
     chat_messages = relationship("ChatMessage", back_populates="report")
     sections = relationship("ReportSection", back_populates="report")
+    body_age = relationship("BodyAge", back_populates="report", uselist=False)
 
 
 class OrganScore(Base):
@@ -114,3 +115,23 @@ class ReportSection(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     report = relationship("Report", back_populates="sections")
+
+
+class BodyAge(Base):
+    __tablename__ = "body_ages"
+
+    id = Column(Integer, primary_key=True)
+    report_id = Column(Integer, ForeignKey("reports.id"), unique=True)
+    chronological_age = Column(Float, nullable=True)       # actual age in years
+    pheno_age = Column(Float, nullable=True)               # PhenoAge (Levine formula)
+    zen_age = Column(Float, nullable=True)                 # Final displayed age (AI synthesized)
+    age_difference = Column(Float, nullable=True)          # zen_age - chronological_age (negative = younger)
+    interpretation = Column(Text, nullable=True)           # AI narrative
+    markers_used = Column(JSON, nullable=True)             # list of marker names used
+    markers_missing = Column(JSON, nullable=True)          # list of missing markers
+    confidence = Column(String(20), nullable=True)         # "high" / "medium" / "low"
+    sub_ages = Column(JSON, nullable=True)                 # {"metabolic": 38, "vascular": 45, "bone": 36, ...}
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    report = relationship("Report", back_populates="body_age")
