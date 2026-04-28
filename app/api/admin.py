@@ -12,7 +12,8 @@ from ..models.order import Order
 from ..models.report import Report, OrganScore, Finding, HealthPriority, ConsultationNote, ReportSection
 from ..services.lab_classifier import parse_excel_lab_results, generate_template_excel, MARKERS, classify_severity
 from ..services.section_params import SECTION_PARAMETERS, SECTION_META
-from ..services.ai_service import extract_report_parameters
+from ..services.ai_service import extract_report_parameters, generate_priorities
+from ..services.organ_param_map import ORGAN_DEFINITIONS, RISK_LABELS
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -446,3 +447,96 @@ def import_section_as_findings(report_id: int, section_type: str, db: Session = 
 
     db.commit()
     return {"ok": True, "imported": created}
+
+
+@router.post("/reports/{report_id}/sync-organs")
+def sync_organs(report_id: int, db: Session = Depends(get_db)):
+    """
+    Auto-create or update all 10 organ score records, computing counts
+    from the report's Finding records via the organ-parameter mapping.
+    """
+    if not db.query(Report).filter(Report.id == report_id).first():
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    findings = db.query(Finding).filter(Finding.report_id == report_id).all()
+    finding_sev = {f.name.lower().strip(): f.severity for f in findings}
+
+    for defn in ORGAN_DEFINITIONS:
+        counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
+        for p in defn["params"]:
+            sev = finding_sev.get(p)
+            if sev and sev in counts:
+                counts[sev] += 1
+
+        if counts["critical"] > 0:
+            severity = "critical"
+        elif counts["major"] > 0:
+            severity = "major"
+        elif counts["minor"] > 0:
+            severity = "minor"
+        else:
+            severity = "normal"
+
+        risk_label = RISK_LABELS[severity]
+
+        existing = (
+            db.query(OrganScore)
+            .filter(OrganScore.report_id == report_id, OrganScore.organ_name == defn["organ_name"])
+            .first()
+        )
+        if existing:
+            existing.severity = severity
+            existing.risk_label = risk_label
+            existing.critical_count = counts["critical"]
+            existing.major_count = counts["major"]
+            existing.minor_count = counts["minor"]
+            existing.normal_count = counts["normal"]
+        else:
+            db.add(OrganScore(
+                report_id=report_id,
+                organ_name=defn["organ_name"],
+                severity=severity,
+                risk_label=risk_label,
+                icon=defn["icon"],
+                critical_count=counts["critical"],
+                major_count=counts["major"],
+                minor_count=counts["minor"],
+                normal_count=counts["normal"],
+                display_order=defn["display_order"],
+            ))
+
+    db.commit()
+    return {"ok": True, "organs": len(ORGAN_DEFINITIONS)}
+
+
+@router.post("/reports/{report_id}/generate-priorities")
+def auto_generate_priorities(report_id: int, db: Session = Depends(get_db)):
+    """Use Claude to generate health priorities from findings and organ scores."""
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    findings = db.query(Finding).filter(Finding.report_id == report_id).all()
+    organs = db.query(OrganScore).filter(OrganScore.report_id == report_id).order_by(OrganScore.display_order).all()
+
+    priorities = generate_priorities(report, findings, organs)
+    if not priorities:
+        raise HTTPException(status_code=422, detail="AI could not generate priorities. Check API key or try again.")
+
+    # Replace existing priorities
+    db.query(HealthPriority).filter(HealthPriority.report_id == report_id).delete()
+
+    for i, p in enumerate(priorities, 1):
+        db.add(HealthPriority(
+            report_id=report_id,
+            priority_order=i,
+            title=p.get("title", ""),
+            why_important=p.get("why_important", ""),
+            diet_recommendations=p.get("diet_recommendations", []),
+            exercise_recommendations=p.get("exercise_recommendations", []),
+            sleep_recommendations=p.get("sleep_recommendations", []),
+            supplement_recommendations=p.get("supplement_recommendations", []),
+        ))
+
+    db.commit()
+    return {"ok": True, "count": len(priorities)}

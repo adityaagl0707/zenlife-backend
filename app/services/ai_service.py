@@ -192,3 +192,71 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
         return json.loads(raw)
     except Exception:
         return {"_parse_error": raw[:500]}
+
+
+def generate_priorities(report: Report, findings: list, organs: list) -> list:
+    """
+    Use Claude to generate 3-5 prioritised health action plans for the patient.
+    Returns a list of dicts: {title, why_important, diet, exercise, sleep, supplements}.
+    """
+    if not settings.anthropic_api_key:
+        return []
+
+    critical = [f for f in findings if f.severity == "critical"]
+    major = [f for f in findings if f.severity == "major"]
+    minor = [f for f in findings if f.severity == "minor"]
+
+    def fmt(items):
+        return "\n".join(f"  - {f.name}: {f.value or 'N/A'} {f.unit or ''}" for f in items) or "  None"
+
+    organ_lines = "\n".join(
+        f"  - {o.organ_name}: {o.severity.upper()} ({o.critical_count}C/{o.major_count}M/{o.minor_count}m/{o.normal_count}n)"
+        for o in organs
+    )
+
+    prompt = f"""Patient: {report.order.patient_name}, Age: {report.order.patient_age}, Gender: {report.order.patient_gender}
+Overall Severity: {report.overall_severity.upper()}
+
+=== ORGAN SCORES ===
+{organ_lines}
+
+=== CRITICAL FINDINGS ===
+{fmt(critical)}
+
+=== MAJOR FINDINGS ===
+{fmt(major)}
+
+=== MINOR FINDINGS (sample) ===
+{fmt(minor[:10])}
+
+Based on the above, generate 3-5 personalised health priorities for this patient, ranked by urgency.
+For each priority return structured JSON. Focus on actionable lifestyle changes the patient can start immediately.
+
+Return ONLY a valid JSON array (no markdown):
+[
+  {{
+    "title": "short action-oriented title",
+    "why_important": "2-3 sentence explanation of why this matters for this specific patient",
+    "diet_recommendations": ["specific food advice 1", "specific food advice 2"],
+    "exercise_recommendations": ["specific exercise advice 1", "specific exercise advice 2"],
+    "sleep_recommendations": ["specific sleep advice 1"],
+    "supplement_recommendations": ["specific supplement if relevant, else omit"]
+  }}
+]"""
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=3000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    try:
+        return json.loads(raw)
+    except Exception:
+        return []
