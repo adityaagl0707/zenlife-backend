@@ -1,8 +1,14 @@
-"""Zeno AI — ZenLife's health intelligence assistant, powered by Claude."""
+"""Zeno AI — ZenLife's health intelligence assistant.
+
+Chat: Google Gemini 2.0 Flash (fast, free-tier friendly)
+Report extraction + health priorities: Anthropic Claude (better at structured JSON)
+"""
 import base64
 import datetime
 import json
 from anthropic import Anthropic
+from google import genai as google_genai
+from google.genai import types as google_types
 from sqlalchemy.orm import Session
 from ..models.report import Report, Finding, OrganScore, ChatMessage
 from ..core.config import get_settings
@@ -251,14 +257,11 @@ def build_report_context(report: Report, db: Session) -> str:
 
 
 def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
-    if not settings.anthropic_api_key:
-        return (
-            "Zeno is currently in demo mode. Connect an Anthropic API key to enable full AI capabilities. "
-            f"Based on your report, your most critical finding is your Agatston Score of 550, "
-            "which indicates significant coronary artery disease requiring immediate cardiologist consultation."
-        )
-
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    """
+    Zeno AI chat — powered by Google Gemini 2.0 Flash.
+    Falls back to Claude if Google API key is not set.
+    Report extraction and priority generation remain on Claude.
+    """
     report_context = build_report_context(report, db)
 
     # Load chat history (last 20 messages)
@@ -270,33 +273,31 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
         .all()
     )
 
-    messages = []
-    for msg in history_rows:
-        messages.append({"role": msg.role, "content": msg.content})
+    # Build history in Claude format (used for persona classification)
+    claude_history = [{"role": m.role, "content": m.content} for m in history_rows]
 
-    # ── Persona classification ─────────────────────────────────────────────
-    # Runs on every turn; zero cost (rule-based, no API call).
-    # Uses the message content, report severity, and conversation history.
-    persona = classify_persona(report, user_message, messages)
+    # ── Persona classification (rule-based, zero cost) ─────────────────────
+    persona = classify_persona(report, user_message, claude_history)
     persona_instruction = PERSONA_STYLES[persona]
 
-    # ── Build system prompt with persona injected ──────────────────────────
-    system = (
+    # ── Full system prompt ─────────────────────────────────────────────────
+    system_prompt = (
         f"{ZENO_SYSTEM_PROMPT}"
         f"\n\n{persona_instruction}"
         f"\n\n=== PATIENT REPORT CONTEXT ===\n{report_context}"
     )
 
-    messages.append({"role": "user", "content": user_message})
-
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1536,
-        system=system,
-        messages=messages,
-    )
-
-    reply = response.content[0].text
+    # ── Gemini path (primary) ──────────────────────────────────────────────
+    if settings.google_api_key:
+        reply = _chat_gemini(system_prompt, claude_history, user_message)
+    # ── Claude fallback ────────────────────────────────────────────────────
+    elif settings.anthropic_api_key:
+        reply = _chat_claude(system_prompt, claude_history, user_message)
+    else:
+        return (
+            "Zeno is currently in demo mode. Add a GOOGLE_API_KEY or ANTHROPIC_API_KEY "
+            "to enable full AI capabilities."
+        )
 
     # Save to DB
     db.add(ChatMessage(report_id=report.id, role="user", content=user_message))
@@ -304,6 +305,54 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
     db.commit()
 
     return reply
+
+
+def _chat_gemini(system_prompt: str, history: list[dict], user_message: str) -> str:
+    """Send a chat message via Google Gemini 2.5 Flash (google-genai SDK)."""
+    client = google_genai.Client(api_key=settings.google_api_key)
+
+    # Convert Claude-format history → Gemini Content format
+    # Claude: role="assistant"  →  Gemini: role="model"
+    gemini_history = []
+    for msg in history:
+        gemini_history.append(
+            google_types.Content(
+                role="model" if msg["role"] == "assistant" else "user",
+                parts=[google_types.Part(text=msg["content"])],
+            )
+        )
+
+    # Append the new user message
+    gemini_history.append(
+        google_types.Content(
+            role="user",
+            parts=[google_types.Part(text=user_message)],
+        )
+    )
+
+    response = client.models.generate_content(
+        model="models/gemini-2.5-flash",
+        contents=gemini_history,
+        config=google_types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=1536,
+            temperature=0.7,
+        ),
+    )
+    return response.text
+
+
+def _chat_claude(system_prompt: str, history: list[dict], user_message: str) -> str:
+    """Send a chat message via Anthropic Claude (fallback)."""
+    client = Anthropic(api_key=settings.anthropic_api_key)
+    messages = history + [{"role": "user", "content": user_message}]
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1536,
+        system=system_prompt,
+        messages=messages,
+    )
+    return response.content[0].text
 
 
 def extract_report_parameters(section_type: str, file_b64: str, file_mime: str) -> dict:
