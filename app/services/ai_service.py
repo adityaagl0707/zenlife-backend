@@ -1,5 +1,6 @@
 """Zeno AI — ZenLife's health intelligence assistant, powered by Claude."""
 import base64
+import datetime
 import json
 from anthropic import Anthropic
 from sqlalchemy.orm import Session
@@ -8,6 +9,150 @@ from ..core.config import get_settings
 from .section_params import SECTION_PARAMETERS, SECTION_META
 
 settings = get_settings()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PERSONA SYSTEM
+# Classifies the patient's emotional state + risk profile on every turn and
+# injects a tailored communication style into Zeno's system prompt.
+# ──────────────────────────────────────────────────────────────────────────────
+
+PERSONA_STYLES: dict[str, str] = {
+    "celebratory": """
+ACTIVE COMMUNICATION PERSONA: Celebratory & Educational
+The patient is in a positive headspace — strong results, low anxiety.
+- Lead with genuine enthusiasm about what's going well
+- Be warm and conversational, like a friend sharing good news
+- Educate them on WHY their good numbers matter and HOW to keep them
+- Frame any mild concerns as easy wins, not problems to worry about
+- Phrases that fit: "What's really impressive here is…", "You should feel good about…"
+- Keep the energy forward-looking and motivating
+- Do NOT open with caveats or problems — they earned the celebration
+""",
+
+    "calm_structured": """
+ACTIVE COMMUNICATION PERSONA: Calm, Structured & Action-Oriented
+The patient may be anxious or is dealing with significant findings.
+- Open with reassurance — NEVER with the most alarming finding
+- Use clear structure for every explanation: what it means → why it matters → what to do
+- Give them a sense of control: focus on concrete, achievable next steps
+- Replace alarming words: "serious" → "needs attention", "bad" → "outside the ideal range"
+- Keep sentences short. Avoid long paragraphs. One idea at a time.
+- Always end with ONE clear action they can take — today, this week, or at their next visit
+- Phrases that fit: "Here's what we know…", "The encouraging part is…", "Your next step is simple…"
+""",
+
+    "plain_language": """
+ACTIVE COMMUNICATION PERSONA: Plain Language & Analogy Mode
+The patient is confused or unfamiliar with medical terminology.
+- NEVER use a medical term without immediately explaining it in plain everyday words
+- Use analogies and comparisons: "Think of your kidneys like a water filter…"
+- One idea per sentence. Short paragraphs.
+- Validate their confusion openly: "These numbers can feel overwhelming — let me break it down simply"
+- No acronyms — say "red blood cells" not "RBC", "bad cholesterol" not "LDL"
+- At the end, offer to go deeper: "Want me to explain any part of that differently?"
+""",
+
+    "empathetic": """
+ACTIVE COMMUNICATION PERSONA: Empathetic — Acknowledge First, Explain Second
+The patient is frustrated, upset, scared, or emotionally charged.
+- Your FIRST sentence must acknowledge their emotion — before any clinical content
+- Validate explicitly: "I completely understand why this feels worrying", "That's a fair concern"
+- Do NOT rush to explain — earn the right to be heard first
+- After acknowledging, be honest and clear — do not sugarcoat, but be gentle
+- Never be defensive about the report or the platform
+- Keep your tone unhurried, even if their message was blunt or abrupt
+- Phrases that fit: "That's a completely fair concern…", "I hear you…", "Let's work through this together…"
+""",
+}
+
+
+def classify_persona(report: Report, user_message: str, history: list) -> str:
+    """
+    Rule-based persona classifier. Runs on every turn; cost = zero (no API call).
+    Returns one of: 'celebratory' | 'calm_structured' | 'plain_language' | 'empathetic'
+
+    Classification inputs:
+      - report.overall_severity  (risk profile)
+      - critical/major finding counts via OrganScore (already on the report object)
+      - user_message content (emotional signals)
+      - time of day (late-night anxiety signal)
+      - conversation length (early turns are higher anxiety)
+    """
+    msg = user_message.lower().strip()
+    hour = datetime.datetime.now().hour
+
+    # ── Frustrated / angry signals ─────────────────────────────────────────
+    frustrated = (
+        any(kw in msg for kw in [
+            "wrong", "mistake", "incorrect", "error", "why is", "why does",
+            "ridiculous", "useless", "terrible", "horrible", "worst",
+            "not right", "makes no sense", "fix this",
+        ])
+        or (user_message != user_message.lower() and user_message == user_message.upper() and len(user_message) > 4)
+        or msg.count("!") >= 2
+    )
+
+    # ── Confused / needs-plain-language signals ────────────────────────────
+    # Use specific multi-word phrases to avoid false positives (e.g. "explain" alone
+    # could be a normal first question from a high-risk patient, not confusion).
+    confused = any(kw in msg for kw in [
+        "what does", "what is", "don't understand", "dont understand",
+        "what does it mean", "confused", "not sure what",
+        "what are these", "what do you mean", "i don't know what",
+        "never heard of", "no idea what",
+    ]) or ("explain" in msg and any(kw in msg for kw in ["don't", "dont", "confused", "mean", "what"]))
+
+    # ── Anxious signals ────────────────────────────────────────────────────
+    late_night = hour >= 22 or hour <= 5
+    anxious = (
+        late_night
+        or any(kw in msg for kw in [
+            "worried", "scared", "serious", "dangerous", "bad result",
+            "afraid", "fear", "panic", "urgent", "emergency", "dying",
+            "cancer", "heart attack", "stroke", "should i be worried",
+            "how bad", "is it bad", "very bad", "cant sleep", "can't sleep",
+            "keep thinking", "awake", "up at night",
+        ])
+        or msg.count("?") >= 3
+    )
+
+    # ── Risk profile from report ───────────────────────────────────────────
+    severity = (report.overall_severity or "normal").lower()
+    high_risk = severity in ("critical", "major")
+    low_risk  = severity in ("normal", "minor")
+
+    # ── Positive / celebratory signals ────────────────────────────────────
+    # Keep these specific — avoid words that could appear in neutral questions
+    positive = any(kw in msg for kw in [
+        "great", "happy", "pleased", "amazing", "excellent", "fantastic",
+        "well done", "proud", "love my", "good score", "great score",
+        "so good", "really good", "doing well", "healthy",
+    ])
+
+    # Early in conversation (first 2 user turns) + high risk → more likely anxious
+    user_turns = sum(1 for m in history if m.get("role") == "user")
+    early_high_risk = user_turns <= 1 and high_risk
+
+    # ── Decision tree ──────────────────────────────────────────────────────
+    # Priority order (highest → lowest):
+    #   1. frustrated/angry  → empathetic (acknowledge before explaining)
+    #   2. low risk + happy  → celebratory (happy patient asking questions still
+    #                          deserves celebration, not a plain-language lecture)
+    #   3. anxious/high risk → calm_structured (anxiety beats confusion;
+    #                          a worried patient asking "what is X" needs calm
+    #                          reassurance first, not simplified jargon)
+    #   4. confused          → plain_language (pure comprehension gap, no anxiety)
+    #   5. default           → calm_structured (safest fallback)
+    if frustrated:
+        return "empathetic"
+    if low_risk and positive:
+        return "celebratory"
+    if anxious or early_high_risk:
+        return "calm_structured"
+    if confused:
+        return "plain_language"
+    return "calm_structured"   # safe default for ambiguous cases
+
 
 ZENO_SYSTEM_PROMPT = """You are Zeno, a senior physician at ZenLife with decades of clinical experience across cardiology, endocrinology, internal medicine, and preventive health.
 
@@ -116,8 +261,8 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
     client = Anthropic(api_key=settings.anthropic_api_key)
     report_context = build_report_context(report, db)
 
-    # Load chat history (last 10 messages)
-    history = (
+    # Load chat history (last 20 messages)
+    history_rows = (
         db.query(ChatMessage)
         .filter(ChatMessage.report_id == report.id)
         .order_by(ChatMessage.created_at.asc())
@@ -126,11 +271,23 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
     )
 
     messages = []
-    for msg in history:
+    for msg in history_rows:
         messages.append({"role": msg.role, "content": msg.content})
-    messages.append({"role": "user", "content": user_message})
 
-    system = f"{ZENO_SYSTEM_PROMPT}\n\n=== PATIENT REPORT CONTEXT ===\n{report_context}"
+    # ── Persona classification ─────────────────────────────────────────────
+    # Runs on every turn; zero cost (rule-based, no API call).
+    # Uses the message content, report severity, and conversation history.
+    persona = classify_persona(report, user_message, messages)
+    persona_instruction = PERSONA_STYLES[persona]
+
+    # ── Build system prompt with persona injected ──────────────────────────
+    system = (
+        f"{ZENO_SYSTEM_PROMPT}"
+        f"\n\n{persona_instruction}"
+        f"\n\n=== PATIENT REPORT CONTEXT ===\n{report_context}"
+    )
+
+    messages.append({"role": "user", "content": user_message})
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
