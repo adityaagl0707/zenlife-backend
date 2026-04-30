@@ -556,12 +556,28 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
 def sync_all_organs(db: Session = Depends(get_db)):
     """
     Run organ sync for EVERY report in the database.
-    Useful after adding new organ systems — ensures all reports get the new organ rows.
+    - Deletes any OrganScore rows whose name is not in the canonical ORGAN_DEFINITIONS list.
+    - Creates or updates rows for all 13 canonical organ systems per report.
     """
+    canonical_names = {defn["organ_name"] for defn in ORGAN_DEFINITIONS}
     all_reports = db.query(Report).all()
-    results = []
+    deleted_total = 0
 
     for report in all_reports:
+        # ── Step 1: delete stale / renamed organ rows ──────────────────────
+        stale = (
+            db.query(OrganScore)
+            .filter(
+                OrganScore.report_id == report.id,
+                OrganScore.organ_name.notin_(canonical_names),
+            )
+            .all()
+        )
+        for row in stale:
+            db.delete(row)
+            deleted_total += 1
+
+        # ── Step 2: upsert all canonical organ rows ────────────────────────
         findings = db.query(Finding).filter(Finding.report_id == report.id).all()
         finding_sev = {f.name.lower().strip(): f.severity for f in findings}
 
@@ -586,32 +602,35 @@ def sync_all_organs(db: Session = Depends(get_db)):
                 .first()
             )
             if existing:
-                existing.severity        = severity
-                existing.risk_label      = risk_label
-                existing.critical_count  = counts["critical"]
-                existing.major_count     = counts["major"]
-                existing.minor_count     = counts["minor"]
-                existing.normal_count    = counts["normal"]
-                existing.icon            = defn["icon"]
-                existing.display_order   = defn["display_order"]
+                existing.severity       = severity
+                existing.risk_label     = risk_label
+                existing.critical_count = counts["critical"]
+                existing.major_count    = counts["major"]
+                existing.minor_count    = counts["minor"]
+                existing.normal_count   = counts["normal"]
+                existing.icon           = defn["icon"]
+                existing.display_order  = defn["display_order"]
             else:
                 db.add(OrganScore(
-                    report_id    = report.id,
-                    organ_name   = defn["organ_name"],
-                    severity     = severity,
-                    risk_label   = risk_label,
-                    icon         = defn["icon"],
-                    critical_count  = counts["critical"],
-                    major_count     = counts["major"],
-                    minor_count     = counts["minor"],
-                    normal_count    = counts["normal"],
-                    display_order   = defn["display_order"],
+                    report_id      = report.id,
+                    organ_name     = defn["organ_name"],
+                    severity       = severity,
+                    risk_label     = risk_label,
+                    icon           = defn["icon"],
+                    critical_count = counts["critical"],
+                    major_count    = counts["major"],
+                    minor_count    = counts["minor"],
+                    normal_count   = counts["normal"],
+                    display_order  = defn["display_order"],
                 ))
 
-        results.append(report.id)
-
     db.commit()
-    return {"ok": True, "reports_synced": len(results), "organ_systems": len(ORGAN_DEFINITIONS)}
+    return {
+        "ok": True,
+        "reports_synced": len(all_reports),
+        "organ_systems": len(ORGAN_DEFINITIONS),
+        "stale_rows_deleted": deleted_total,
+    }
 
 
 @router.post("/reports/{report_id}/calculate-body-age")
