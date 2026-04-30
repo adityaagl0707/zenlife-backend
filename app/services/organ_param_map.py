@@ -175,8 +175,6 @@ ORGAN_DEFINITIONS = [
             "lung and respiratory health: traumatic issues",
         ],
     },
-]
-
     {
         "organ_name": "Vascular Health",
         "icon": "🩺",
