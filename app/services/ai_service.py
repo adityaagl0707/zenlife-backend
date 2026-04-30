@@ -287,16 +287,27 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
         f"\n\n=== PATIENT REPORT CONTEXT ===\n{report_context}"
     )
 
-    # ── Gemini path (primary) ──────────────────────────────────────────────
+    # ── Gemini path (primary) with automatic Claude fallback ──────────────
+    reply = None
+
     if settings.google_api_key:
-        reply = _chat_gemini(system_prompt, claude_history, user_message)
-    # ── Claude fallback ────────────────────────────────────────────────────
-    elif settings.anthropic_api_key:
-        reply = _chat_claude(system_prompt, claude_history, user_message)
-    else:
+        try:
+            reply = _chat_gemini(system_prompt, claude_history, user_message)
+        except Exception as gemini_err:
+            # Rate limit, quota exhausted, or transient network error —
+            # fall through to Claude silently so the patient sees no disruption.
+            print(f"[Zeno] Gemini error ({type(gemini_err).__name__}): {gemini_err} — falling back to Claude")
+
+    if reply is None and settings.anthropic_api_key:
+        try:
+            reply = _chat_claude(system_prompt, claude_history, user_message)
+        except Exception as claude_err:
+            print(f"[Zeno] Claude fallback also failed: {claude_err}")
+
+    if reply is None:
         return (
-            "Zeno is currently in demo mode. Add a GOOGLE_API_KEY or ANTHROPIC_API_KEY "
-            "to enable full AI capabilities."
+            "I'm having a brief technical issue reaching my knowledge systems right now. "
+            "Please try again in a moment — I'll be back shortly."
         )
 
     # Save to DB
@@ -308,7 +319,13 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
 
 
 def _chat_gemini(system_prompt: str, history: list[dict], user_message: str) -> str:
-    """Send a chat message via Google Gemini 2.5 Flash (google-genai SDK)."""
+    """
+    Send a chat message via Google Gemini 2.5 Flash (google-genai SDK).
+    Retries once after a short delay on transient / rate-limit errors.
+    Raises on permanent failure so chat_with_zeno can fall back to Claude.
+    """
+    import time
+
     client = google_genai.Client(api_key=settings.google_api_key)
 
     # Convert Claude-format history → Gemini Content format
@@ -322,7 +339,6 @@ def _chat_gemini(system_prompt: str, history: list[dict], user_message: str) -> 
             )
         )
 
-    # Append the new user message
     gemini_history.append(
         google_types.Content(
             role="user",
@@ -330,16 +346,32 @@ def _chat_gemini(system_prompt: str, history: list[dict], user_message: str) -> 
         )
     )
 
-    response = client.models.generate_content(
-        model="models/gemini-2.5-flash",
-        contents=gemini_history,
-        config=google_types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            max_output_tokens=1536,
-            temperature=0.7,
-        ),
+    config = google_types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        max_output_tokens=1536,
+        temperature=0.7,
     )
-    return response.text
+
+    last_err = None
+    for attempt in range(2):          # try twice before giving up
+        try:
+            response = client.models.generate_content(
+                model="models/gemini-2.5-flash",
+                contents=gemini_history,
+                config=config,
+            )
+            return response.text
+        except Exception as e:
+            last_err = e
+            err_str = str(e).lower()
+            # Only retry on transient errors (rate limit, service unavailable)
+            if attempt == 0 and any(kw in err_str for kw in ["429", "503", "quota", "rate", "unavailable", "resource_exhausted"]):
+                print(f"[Zeno] Gemini transient error, retrying in 3s… ({e})")
+                time.sleep(3)
+            else:
+                break   # permanent error — don't retry
+
+    raise last_err
 
 
 def _chat_claude(system_prompt: str, history: list[dict], user_message: str) -> str:
