@@ -257,11 +257,7 @@ def build_report_context(report: Report, db: Session) -> str:
 
 
 def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
-    """
-    Zeno AI chat — powered by Google Gemini 2.0 Flash.
-    Falls back to Claude if Google API key is not set.
-    Report extraction and priority generation remain on Claude.
-    """
+    """Zeno AI chat — powered by Google Gemini 2.5 Flash."""
     report_context = build_report_context(report, db)
 
     # Load chat history (last 20 messages)
@@ -272,43 +268,44 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
         .limit(20)
         .all()
     )
-
-    # Build history in Claude format (used for persona classification)
-    claude_history = [{"role": m.role, "content": m.content} for m in history_rows]
+    history = [{"role": m.role, "content": m.content} for m in history_rows]
 
     # ── Persona classification (rule-based, zero cost) ─────────────────────
-    persona = classify_persona(report, user_message, claude_history)
+    persona = classify_persona(report, user_message, history)
     persona_instruction = PERSONA_STYLES[persona]
 
-    # ── Full system prompt ─────────────────────────────────────────────────
+    # ── System prompt ──────────────────────────────────────────────────────
     system_prompt = (
         f"{ZENO_SYSTEM_PROMPT}"
         f"\n\n{persona_instruction}"
         f"\n\n=== PATIENT REPORT CONTEXT ===\n{report_context}"
     )
 
-    # ── Gemini path (primary) with automatic Claude fallback ──────────────
-    reply = None
+    # ── Gemini call ────────────────────────────────────────────────────────
+    client = google_genai.Client(api_key=settings.google_api_key)
 
-    if settings.google_api_key:
-        try:
-            reply = _chat_gemini(system_prompt, claude_history, user_message)
-        except Exception as gemini_err:
-            # Rate limit, quota exhausted, or transient network error —
-            # fall through to Claude silently so the patient sees no disruption.
-            print(f"[Zeno] Gemini error ({type(gemini_err).__name__}): {gemini_err} — falling back to Claude")
+    # Convert history to Gemini format (role: "assistant" → "model")
+    gemini_contents = []
+    for msg in history:
+        gemini_contents.append(google_types.Content(
+            role="model" if msg["role"] == "assistant" else "user",
+            parts=[google_types.Part(text=msg["content"])],
+        ))
+    gemini_contents.append(google_types.Content(
+        role="user",
+        parts=[google_types.Part(text=user_message)],
+    ))
 
-    if reply is None and settings.anthropic_api_key:
-        try:
-            reply = _chat_claude(system_prompt, claude_history, user_message)
-        except Exception as claude_err:
-            print(f"[Zeno] Claude fallback also failed: {claude_err}")
-
-    if reply is None:
-        return (
-            "I'm having a brief technical issue reaching my knowledge systems right now. "
-            "Please try again in a moment — I'll be back shortly."
-        )
+    response = client.models.generate_content(
+        model="models/gemini-2.5-flash",
+        contents=gemini_contents,
+        config=google_types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=1024,
+            temperature=0.7,
+        ),
+    )
+    reply = response.text
 
     # Save to DB
     db.add(ChatMessage(report_id=report.id, role="user", content=user_message))
@@ -316,75 +313,6 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
     db.commit()
 
     return reply
-
-
-def _chat_gemini(system_prompt: str, history: list[dict], user_message: str) -> str:
-    """
-    Send a chat message via Google Gemini 2.5 Flash (google-genai SDK).
-    Retries once after a short delay on transient / rate-limit errors.
-    Raises on permanent failure so chat_with_zeno can fall back to Claude.
-    """
-    import time
-
-    client = google_genai.Client(api_key=settings.google_api_key)
-
-    # Convert Claude-format history → Gemini Content format
-    # Claude: role="assistant"  →  Gemini: role="model"
-    gemini_history = []
-    for msg in history:
-        gemini_history.append(
-            google_types.Content(
-                role="model" if msg["role"] == "assistant" else "user",
-                parts=[google_types.Part(text=msg["content"])],
-            )
-        )
-
-    gemini_history.append(
-        google_types.Content(
-            role="user",
-            parts=[google_types.Part(text=user_message)],
-        )
-    )
-
-    config = google_types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        max_output_tokens=1536,
-        temperature=0.7,
-    )
-
-    last_err = None
-    for attempt in range(2):          # try twice before giving up
-        try:
-            response = client.models.generate_content(
-                model="models/gemini-2.5-flash",
-                contents=gemini_history,
-                config=config,
-            )
-            return response.text
-        except Exception as e:
-            last_err = e
-            err_str = str(e).lower()
-            # Only retry on transient errors (rate limit, service unavailable)
-            if attempt == 0 and any(kw in err_str for kw in ["429", "503", "quota", "rate", "unavailable", "resource_exhausted"]):
-                print(f"[Zeno] Gemini transient error, retrying in 3s… ({e})")
-                time.sleep(3)
-            else:
-                break   # permanent error — don't retry
-
-    raise last_err
-
-
-def _chat_claude(system_prompt: str, history: list[dict], user_message: str) -> str:
-    """Send a chat message via Anthropic Claude (fallback)."""
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    messages = history + [{"role": "user", "content": user_message}]
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1536,
-        system=system_prompt,
-        messages=messages,
-    )
-    return response.content[0].text
 
 
 def extract_report_parameters(section_type: str, file_b64: str, file_mime: str) -> dict:

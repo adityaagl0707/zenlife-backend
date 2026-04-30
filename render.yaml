@@ -3,9 +3,22 @@ services:
     name: zenlife-backend
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
       - key: FRONTEND_URL
         value: https://frontend-three-psi-e33mk953bw.vercel.app
+
+  # Keep-alive cron — pings /health every 10 min so the service never cold-starts
+  - type: cron
+    name: zenlife-keepalive
+    runtime: python
+    schedule: "*/10 * * * *"
+    buildCommand: pip install requests
+    startCommand: python -c "import requests, os; r = requests.get(os.environ.get('BACKEND_URL','') + '/health', timeout=10); print(r.status_code, r.json())"
+    envVars:
+      - key: BACKEND_URL
+        sync: false
