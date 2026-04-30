@@ -501,6 +501,20 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
     if not db.query(Report).filter(Report.id == report_id).first():
         raise HTTPException(status_code=404, detail="Report not found")
 
+    # ── Step 1: delete stale / renamed organ rows ──────────────────────────
+    canonical_names = {defn["organ_name"] for defn in ORGAN_DEFINITIONS}
+    stale = (
+        db.query(OrganScore)
+        .filter(
+            OrganScore.report_id == report_id,
+            OrganScore.organ_name.notin_(canonical_names),
+        )
+        .all()
+    )
+    stale_count = len(stale)
+    for row in stale:
+        db.delete(row)
+
     findings = db.query(Finding).filter(Finding.report_id == report_id).all()
     finding_sev = {f.name.lower().strip(): f.severity for f in findings}
 
@@ -549,7 +563,7 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
             ))
 
     db.commit()
-    return {"ok": True, "organs": len(ORGAN_DEFINITIONS)}
+    return {"ok": True, "organs": len(ORGAN_DEFINITIONS), "stale_rows_deleted": stale_count}
 
 
 @router.post("/sync-all-organs")
