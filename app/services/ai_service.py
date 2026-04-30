@@ -298,7 +298,7 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
 
     try:
         response = client.models.generate_content(
-            model="models/gemini-2.5-flash",
+            model="models/gemini-2.5-flash-lite",
             contents=gemini_contents,
             config=google_types.GenerateContentConfig(
                 system_instruction=system_prompt,
