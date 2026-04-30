@@ -64,4 +64,11 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    from app.core.config import get_settings
+    s = get_settings()
+    return {
+        "status": "ok",
+        "gemini_key_set": bool(s.google_api_key),
+        "anthropic_key_set": bool(s.anthropic_api_key),
+        "chat_model": "gemini-2.5-flash-lite",
+    }
