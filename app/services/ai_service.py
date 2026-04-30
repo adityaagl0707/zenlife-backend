@@ -296,16 +296,23 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
         parts=[google_types.Part(text=user_message)],
     ))
 
-    response = client.models.generate_content(
-        model="models/gemini-2.5-flash",
-        contents=gemini_contents,
-        config=google_types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            max_output_tokens=1024,
-            temperature=0.7,
-        ),
-    )
-    reply = response.text
+    try:
+        response = client.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=gemini_contents,
+            config=google_types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=1024,
+                temperature=0.7,
+            ),
+        )
+        reply = response.text
+    except Exception as e:
+        print(f"[Zeno] Gemini error: {type(e).__name__}: {e}")
+        reply = (
+            "I'm having a brief technical issue right now. "
+            "Please try again in a moment — I'll be back shortly."
+        )
 
     # Save to DB
     db.add(ChatMessage(report_id=report.id, role="user", content=user_message))

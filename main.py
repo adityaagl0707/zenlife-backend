@@ -2,8 +2,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 load_dotenv(Path(__file__).parent / ".env", override=True)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.database import Base, engine, SessionLocal
 from app.core.config import get_settings
 from app.api import auth, orders, reports, chat, admin
@@ -29,6 +30,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure CORS headers are present even on unhandled 500 errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"[ZenLife] Unhandled error on {request.method} {request.url}: {type(exc).__name__}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Please try again."},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
