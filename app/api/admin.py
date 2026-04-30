@@ -495,8 +495,8 @@ def import_section_as_findings(report_id: int, section_type: str, background_tas
 @router.post("/reports/{report_id}/sync-organs")
 def sync_organs(report_id: int, db: Session = Depends(get_db)):
     """
-    Auto-create or update all 10 organ score records, computing counts
-    from the report's Finding records via the organ-parameter mapping.
+    Auto-create or update all organ score records (one per organ system in ORGAN_DEFINITIONS),
+    computing severity counts from the report's Finding records via the organ-parameter mapping.
     """
     if not db.query(Report).filter(Report.id == report_id).first():
         raise HTTPException(status_code=404, detail="Report not found")
@@ -550,6 +550,68 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
 
     db.commit()
     return {"ok": True, "organs": len(ORGAN_DEFINITIONS)}
+
+
+@router.post("/sync-all-organs")
+def sync_all_organs(db: Session = Depends(get_db)):
+    """
+    Run organ sync for EVERY report in the database.
+    Useful after adding new organ systems — ensures all reports get the new organ rows.
+    """
+    all_reports = db.query(Report).all()
+    results = []
+
+    for report in all_reports:
+        findings = db.query(Finding).filter(Finding.report_id == report.id).all()
+        finding_sev = {f.name.lower().strip(): f.severity for f in findings}
+
+        for defn in ORGAN_DEFINITIONS:
+            counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
+            for p in defn["params"]:
+                sev = finding_sev.get(p)
+                if sev and sev in counts:
+                    counts[sev] += 1
+
+            severity = (
+                "critical" if counts["critical"] > 0 else
+                "major"    if counts["major"] > 0 else
+                "minor"    if counts["minor"] > 0 else
+                "normal"
+            )
+            risk_label = RISK_LABELS[severity]
+
+            existing = (
+                db.query(OrganScore)
+                .filter(OrganScore.report_id == report.id, OrganScore.organ_name == defn["organ_name"])
+                .first()
+            )
+            if existing:
+                existing.severity        = severity
+                existing.risk_label      = risk_label
+                existing.critical_count  = counts["critical"]
+                existing.major_count     = counts["major"]
+                existing.minor_count     = counts["minor"]
+                existing.normal_count    = counts["normal"]
+                existing.icon            = defn["icon"]
+                existing.display_order   = defn["display_order"]
+            else:
+                db.add(OrganScore(
+                    report_id    = report.id,
+                    organ_name   = defn["organ_name"],
+                    severity     = severity,
+                    risk_label   = risk_label,
+                    icon         = defn["icon"],
+                    critical_count  = counts["critical"],
+                    major_count     = counts["major"],
+                    minor_count     = counts["minor"],
+                    normal_count    = counts["normal"],
+                    display_order   = defn["display_order"],
+                ))
+
+        results.append(report.id)
+
+    db.commit()
+    return {"ok": True, "reports_synced": len(results), "organ_systems": len(ORGAN_DEFINITIONS)}
 
 
 @router.post("/reports/{report_id}/calculate-body-age")
