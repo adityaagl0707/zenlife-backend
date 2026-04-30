@@ -71,6 +71,7 @@ ORGAN_DEFINITIONS = [
             "brain: congenital causes", "lacrimal glands", "orbital fat", "optic nerve",
             "globes", "orbits", "maxillary sinuses", "frontal sinuses", "paranasal sinuses",
             "veins", "meninges", "pons", "midbrain", "ventricles", "basal ganglia",
+            "white matter hyperintensity",
         ],
     },
     {
@@ -172,6 +173,54 @@ ORGAN_DEFINITIONS = [
             "pleural cavities", "glottis", "supra-glottis", "lung and respiratory health: tumours",
             "lung and respiratory health: infective-active", "lung and respiratory health: ischemic causes",
             "lung and respiratory health: traumatic issues",
+        ],
+    },
+]
+
+    {
+        "organ_name": "Vascular Health",
+        "icon": "🩺",
+        "display_order": 11,
+        "params": [
+            "aorta & branches", "aorta and branches", "iliac vessels", "neck vessels",
+            "superior venacava", "ivc and tributaries", "other major vessels",
+            "renal vessels", "mesentric vessels", "splenic vessels",
+            "carotid cimt", "carotid plaque score",
+            "agatston score", "agaston score", "lipoprotein (a)", "apolipoprotein b", "apoa1",
+            "fibrinogen", "d-dimer", "nt-probnp", "pt / inr",
+            "fat mass index", "trunk:limb fat ratio", "homa-ir",
+            "p-wave duration",
+        ],
+    },
+    {
+        "organ_name": "Hormonal & Vitality Health",
+        "icon": "⚗️",
+        "display_order": 12,
+        "params": [
+            "testosterone", "free testosterone", "estradiol (e2)", "shbg",
+            "dhea", "igf-1", "cortisol", "cortisol (urine)",
+            "tsh", "thyroxine (t4) free", "triiodothyronine (t3) free", "reverse t3",
+            "tpo", "anti-tg",
+            "thyroid", "adrenals",
+            "psa", "ca-125",
+            "endocrine and metabolic health: degenerative",
+            "endocrine and metabolic health: post-infective",
+            "endocrine and metabolic health: inflammation",
+            "endocrine and metabolic health: tumours",
+            "endocrine and metabolic health: infective-active",
+            "endocrine and metabolic health: ischemic causes",
+            "endocrine and metabolic health: congenital causes",
+        ],
+    },
+    {
+        "organ_name": "Mental & Stress Resilience",
+        "icon": "🧘",
+        "display_order": 13,
+        "params": [
+            "cortisol", "dhea", "nt-probnp",
+            "cerebral white matter", "white matter hyperintensity",
+            "brain: ischemic causes", "brain: degenerative",
+            "basal ganglia", "ventricles", "midbrain", "pons", "meninges",
         ],
     },
 ]

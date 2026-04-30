@@ -108,6 +108,34 @@ SECTION_PARAMETERS = {
         # Inflammation
         {"name": "hs-CRP", "unit": "mg/L", "normal": "<1.0"},
         {"name": "IgE", "unit": "IU/mL", "normal": "<100"},
+        # Advanced Cardiovascular
+        {"name": "ApoA1", "unit": "mg/dL", "normal": "120–160"},
+        {"name": "NT-proBNP", "unit": "pg/mL", "normal": "<125"},
+        {"name": "Fibrinogen", "unit": "mg/dL", "normal": "200–400"},
+        {"name": "D-Dimer", "unit": "µg/mL FEU", "normal": "<0.5"},
+        {"name": "PT / INR", "unit": "INR", "normal": "0.8–1.1"},
+        # Hormonal & Vitality
+        {"name": "Free Testosterone", "unit": "pg/mL", "normal": "9–30(M) / 0.3–1.9(F)"},
+        {"name": "SHBG", "unit": "nmol/L", "normal": "10–57(M) / 18–144(F)"},
+        {"name": "Estradiol (E2)", "unit": "pg/mL", "normal": "20–150(M) / varies(F)"},
+        {"name": "IGF-1", "unit": "ng/mL", "normal": "100–250"},
+        {"name": "Reverse T3", "unit": "ng/dL", "normal": "10–24"},
+        {"name": "Anti-TG", "unit": "IU/mL", "normal": "<115"},
+        # Metabolic / Insulin
+        {"name": "C-Peptide", "unit": "ng/mL", "normal": "0.8–3.5"},
+        {"name": "HOMA-IR", "unit": "index", "normal": "<1.5"},
+        # Kidney (advanced)
+        {"name": "Cystatin C", "unit": "mg/L", "normal": "0.5–1.0"},
+        {"name": "PTH", "unit": "pg/mL", "normal": "15–65"},
+        # Vitamins (advanced)
+        {"name": "Vitamin E", "unit": "mg/L", "normal": "5.5–17"},
+        # Tissue & Organ Stress
+        {"name": "LDH", "unit": "U/L", "normal": "140–280"},
+        {"name": "ESR", "unit": "mm/hr", "normal": "0–20"},
+        # Tumour Markers
+        {"name": "AFP", "unit": "ng/mL", "normal": "<10"},
+        {"name": "CEA", "unit": "ng/mL", "normal": "<3"},
+        {"name": "CA-125", "unit": "U/mL", "normal": "<35"},
     ],
 
     "urine": [
@@ -156,6 +184,9 @@ SECTION_PARAMETERS = {
         {"name": "Fat Free Mass", "unit": "kg", "normal": "—"},
         {"name": "Mineral Bone Density (T-Score)", "unit": "", "normal": "> -1.0"},
         {"name": "Mineral Bone Density (Z-Score)", "unit": "", "normal": "> -2.0"},
+        {"name": "ASMI", "unit": "kg/m²", "normal": ">7.0(M) / >5.5(F)"},
+        {"name": "Fat Mass Index", "unit": "kg/m²", "normal": "<9(M) / <13(F)"},
+        {"name": "Trunk:Limb Fat Ratio", "unit": "", "normal": "<1.2"},
     ],
 
     "calcium_score": [
@@ -181,6 +212,7 @@ SECTION_PARAMETERS = {
         {"name": "QRS Duration", "unit": "ms", "normal": "70–100"},
         {"name": "QT Interval (QTc)", "unit": "ms", "normal": "<440(M) / <460(F)"},
         {"name": "ST Segment", "unit": "", "normal": "Normal"},
+        {"name": "P-Wave Duration", "unit": "ms", "normal": "<120"},
     ],
 
     "chest_xray": [
@@ -270,12 +302,20 @@ SECTION_PARAMETERS = {
         # Neck / other
         {"name": "Parotid Glands", "unit": "", "normal": "Normal"},
         {"name": "Neck Vessels", "unit": "", "normal": "Normal"},
+        # Vascular Assessment
+        {"name": "Carotid CIMT", "unit": "mm", "normal": "<0.9"},
+        {"name": "Carotid Plaque Score", "unit": "", "normal": "0 / None"},
+        # Liver (quantitative)
+        {"name": "Liver Steatosis Grade", "unit": "", "normal": "Grade 0"},
+        # Kidney (structural)
+        {"name": "Renal Cortical Thickness", "unit": "mm", "normal": ">10"},
     ],
 
     "mri": [
         # Brain
         {"name": "Brain: Ischemic causes", "unit": "", "normal": "Normal"},
         {"name": "Cerebral white matter", "unit": "", "normal": "Normal"},
+        {"name": "White Matter Hyperintensity", "unit": "", "normal": "None"},
         {"name": "Basal Ganglia", "unit": "", "normal": "Normal"},
         {"name": "Ventricles", "unit": "", "normal": "Normal"},
         {"name": "Midbrain", "unit": "", "normal": "Normal"},
@@ -385,6 +425,8 @@ SECTION_PARAMETERS = {
         {"name": "Parotid Glands", "unit": "", "normal": "Normal"},
         {"name": "Oropharynx", "unit": "", "normal": "Normal"},
         {"name": "Nasopharynx", "unit": "", "normal": "Normal"},
+        {"name": "Liver Fat %", "unit": "%", "normal": "<5"},
+        {"name": "Prostate Volume", "unit": "cc", "normal": "<30"},
     ],
 }
 
