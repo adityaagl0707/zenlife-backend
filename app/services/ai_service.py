@@ -538,18 +538,67 @@ Return ONLY a valid JSON array (no markdown):
 ]"""
 
     client = Anthropic(api_key=settings.anthropic_api_key)
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=3000,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:
+        print(f"[generate_priorities] Anthropic API error: {e}")
+        return []
 
-    raw = response.content[0].text.strip()
+    raw = (response.content[0].text or "").strip()
     if raw.startswith("```"):
-        raw = raw.split("```")[1]
+        raw = raw.split("```", 2)[1]
         if raw.startswith("json"):
             raw = raw[4:]
+        raw = raw.rstrip("`").strip()
+
+    # Direct parse
     try:
-        return json.loads(raw)
-    except Exception:
+        result = json.loads(raw)
+        if isinstance(result, list):
+            return result
+        # Some models return {"priorities": [...]} or similar
+        if isinstance(result, dict):
+            for v in result.values():
+                if isinstance(v, list):
+                    return v
+        return []
+    except Exception as e:
+        # Repair truncated array — find last complete object and close the array
+        try:
+            depth = 0
+            in_str = False
+            escape = False
+            last_close = -1
+            for i, ch in enumerate(raw):
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_str = not in_str
+                    continue
+                if in_str:
+                    continue
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        last_close = i
+            if last_close > 0:
+                start = raw.find("[")
+                if start >= 0:
+                    repaired = raw[start : last_close + 1] + "\n]"
+                    result = json.loads(repaired)
+                    if isinstance(result, list):
+                        return result
+        except Exception:
+            pass
+        print(f"[generate_priorities] Could not parse AI response: {e}\nFirst 400 chars: {raw[:400]}")
         return []
