@@ -18,10 +18,10 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class CreatePatient(BaseModel):
-    phone: str
-    name: str
-    age: int
-    gender: str
+    phone: Optional[str] = None
+    name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
     email: Optional[str] = None
 
 class CreateOrder(BaseModel):
@@ -138,7 +138,7 @@ def list_patients():
 
 @router.post("/patients")
 def create_patient(body: CreatePatient):
-    if mongo.User.find_one({"phone": body.phone}):
+    if body.phone and mongo.User.find_one({"phone": body.phone}):
         raise HTTPException(status_code=400, detail="Patient with this phone number already exists")
     user = {
         "phone": body.phone,
