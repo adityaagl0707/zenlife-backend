@@ -181,21 +181,95 @@ def _parse_range(range_str: str):
     return (None, None)
 
 
+def _classify_qualitative(val_lower: str, nr_lower: str) -> Optional[str]:
+    """
+    Classify common qualitative urinalysis / chemistry values.
+    Returns severity string or None if value isn't qualitative.
+
+    Pattern grading (urine dipstick / microscopy):
+      Negative / Absent / Nil / None / Not detected / Not found     → normal
+      Trace / Occasional / Few / Rare / Mild                         → minor
+      1+ / +                                                         → minor
+      2+ / ++ / Moderate / Some / Many                               → major
+      3+ / +++ / Marked / Numerous / Heavy / Loaded                  → major
+      4+ / ++++ / Severe / Gross                                     → critical
+
+    Colour / Appearance:
+      Pale yellow / Straw / Yellow / Clear                           → normal
+      Slightly cloudy / Dark yellow / Hazy                           → minor
+      Cloudy / Turbid / Amber                                        → major
+      Red / Brown / Cola / Tea-coloured / Bloody                     → critical
+    """
+    NORMAL_TOKENS = {
+        "negative", "absent", "nil", "none", "not detected", "not found",
+        "no", "neg", "0", "0+",
+    }
+    MINOR_TOKENS = {
+        "trace", "occasional", "few", "rare", "mild", "1+", "+", "tr",
+        "slight", "scanty", "minimal",
+    }
+    MAJOR_TOKENS = {
+        "2+", "++", "moderate", "some", "many", "3+", "+++",
+        "marked", "numerous", "heavy", "loaded", "abundant", "frequent",
+    }
+    CRITICAL_TOKENS = {
+        "4+", "++++", "severe", "gross", "innumerable", "tnt", "tntc",
+    }
+
+    # Colour / Appearance specific buckets
+    NORMAL_COLOUR = {"pale yellow", "straw", "straw coloured", "light yellow", "yellow", "clear"}
+    MINOR_COLOUR  = {"slightly cloudy", "dark yellow", "hazy", "slightly hazy"}
+    MAJOR_COLOUR  = {"cloudy", "turbid", "amber", "deep yellow"}
+    CRIT_COLOUR   = {"red", "reddish", "brown", "cola", "cola-coloured", "tea", "tea-coloured", "bloody", "smoky", "black"}
+
+    # If the normal_range describes a qualitative norm (e.g., "Negative",
+    # "Absent", "Pale yellow", "Clear"), apply the qualitative ladder.
+    is_qual_range = nr_lower in (
+        "absent", "negative", "nil", "none",
+        "clear", "pale yellow", "straw", "yellow",
+    ) or any(t in nr_lower for t in ("negative", "absent", "nil", "clear", "pale yellow"))
+
+    if not is_qual_range:
+        # Even with a numeric range, the *value* might be qualitative — fall
+        # through to the token tables below so we don't return "normal" by
+        # mistake on entries like "Trace" or "+++".
+        pass
+
+    # Colour-specific check first (so "yellow" doesn't fall into NORMAL_TOKENS)
+    if "colour" in nr_lower or "color" in nr_lower or any(c in nr_lower for c in NORMAL_COLOUR):
+        if val_lower in NORMAL_COLOUR:  return "normal"
+        if val_lower in MINOR_COLOUR:   return "minor"
+        if val_lower in MAJOR_COLOUR:   return "major"
+        if val_lower in CRIT_COLOUR:    return "critical"
+
+    if val_lower in NORMAL_TOKENS:   return "normal"
+    if val_lower in MINOR_TOKENS:    return "minor"
+    if val_lower in MAJOR_TOKENS:    return "major"
+    if val_lower in CRITICAL_TOKENS: return "critical"
+
+    # "Positive" without a grade — treat as minor (clinically suspicious; needs review)
+    if val_lower in ("positive", "pos", "present", "detected", "yes"):
+        return "minor"
+
+    return None
+
+
 def classify_severity(value_str: str, normal_range: str) -> str:
     """
     Classify a lab value as normal / minor / major / critical.
-    Returns 'normal' if value is within range or cannot be parsed.
+    Handles both numeric values (range-aware) and common qualitative values
+    (Negative / Trace / +, ++, +++, Clear / Cloudy / Red, etc.)
     """
     if not value_str or not normal_range:
         return "normal"
 
-    # Handle absent/present markers
+    val_lower = str(value_str).strip().lower()
     nr_lower = normal_range.strip().lower()
-    if nr_lower in ("absent", "clear", "pale yellow", "negative"):
-        val_lower = str(value_str).strip().lower()
-        if val_lower in ("absent", "negative", "clear", "pale yellow", "not detected", "nil"):
-            return "normal"
-        return "minor"
+
+    # Try qualitative classification first
+    qual = _classify_qualitative(val_lower, nr_lower)
+    if qual is not None:
+        return qual
 
     val = _extract_number(value_str)
     if val is None:
@@ -695,15 +769,42 @@ def generate_template_excel(patient=None, section=None) -> bytes:
         ("", None),
         ("HOW TO USE:", None),
         ("1. Fill in 'Your Value' column (column C) with the patient's lab result value.", None),
-        ("2. Enter ONLY the numeric value — do not include units (e.g. enter 116, not '116 mg/dL').", None),
-        ("3. Leave blank if a test was not performed.", None),
-        ("4. Save as .xlsx and upload in the ZenLife Admin Panel.", None),
+        ("2. For numeric tests, enter ONLY the number (e.g. 116, not '116 mg/dL').", None),
+        ("3. For qualitative tests, enter the result as the lab reports it — see the table below.", None),
+        ("4. Leave blank if a test was not performed.", None),
+        ("5. Save as .xlsx and upload in the ZenLife Admin Panel.", None),
+        ("", None),
+        ("WHAT TO TYPE FOR NON-NUMERIC TESTS:", None),
+        ("Test type           Type one of these values  →  Severity it maps to", None),
+        ("─────────────────── ─────────────────────────  ──────────────────────", None),
+        ("Bacteria, Yeast,     Negative / Absent / Nil          → Normal", None),
+        ("Casts, Crystals,     Trace / Few / Occasional / +     → Minor", None),
+        ("Mucus, Parasites,    Moderate / Many / ++ / +++       → Major", None),
+        ("Bile, Nitrite,       Numerous / 4+ / ++++             → Critical", None),
+        ("Leucocyte Esterase   Positive (no grade)              → Minor (review)", None),
+        ("", None),
+        ("Urinary Protein /    Negative                         → Normal", None),
+        ("Glucose / Ketone /   Trace / +                        → Minor", None),
+        ("Bilirubin / Blood    ++                               → Major", None),
+        ("                     +++ / ++++                       → Critical", None),
+        ("", None),
+        ("Appearance           Clear                            → Normal", None),
+        ("                     Slightly cloudy / Hazy           → Minor", None),
+        ("                     Cloudy / Turbid                  → Major", None),
+        ("", None),
+        ("Colour               Pale yellow / Straw / Yellow     → Normal", None),
+        ("                     Dark yellow                      → Minor", None),
+        ("                     Amber                            → Major", None),
+        ("                     Red / Brown / Cola / Tea         → Critical", None),
+        ("", None),
+        ("Tip: type the value EXACTLY as the lab report shows it. Spelling/capitalisation", None),
+        ("don't matter — 'NEGATIVE', 'negative', and 'Neg' all work the same way.", None),
         ("", None),
         ("SEVERITY IS AUTO-CLASSIFIED:", None),
         ("• Normal   — Value within the stated normal range", None),
-        ("• Minor    — Value up to 20-30% outside normal range", None),
-        ("• Major    — Value 30-100% outside normal range", None),
-        ("• Critical — Value more than 100% outside normal range", None),
+        ("• Minor    — Value just outside normal (Trace / +) — usually mild concern", None),
+        ("• Major    — Value clearly abnormal (++ / +++) — physician follow-up", None),
+        ("• Critical — Severely abnormal (++++ / Red urine / Numerous) — urgent attention", None),
     ]
     for i, (text, _) in enumerate(instructions, 1):
         cell = ws2.cell(row=i, column=1, value=text)
