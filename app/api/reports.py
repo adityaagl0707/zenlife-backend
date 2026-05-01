@@ -261,19 +261,19 @@ def download_lab_csv(report_id: int, current_user=Depends(get_current_user)):
 def create_share_link(report_id: int, request: Request, current_user=Depends(get_current_user)):
     """Create a JWT-signed shareable link valid for 7 days."""
     r = _report_or_404(report_id, current_user)
-    payload = {
-        "report_id": report_id,
-        "scope": "share",
-        "exp": datetime.utcnow() + timedelta(days=7),
-    }
-    token = jwt.encode(payload, _settings.secret_key, algorithm=_settings.algorithm)
-    base = str(request.base_url).rstrip("/")
-    # Strip /api/v1 if accessed via API root, replace with site root
-    site = base.replace("http://", "https://").split("/api")[0]
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    token = jwt.encode(
+        {"report_id": report_id, "scope": "share", "exp": expires_at},
+        _settings.secret_key,
+        algorithm=_settings.algorithm,
+    )
+    # Build the share URL using the request host (works behind nginx)
+    host = request.headers.get("host") or "zenlife.health"
+    site = f"https://{host}"
     return {
         "token": token,
         "url": f"{site}/share/{token}",
-        "expires_at": payload["exp"].isoformat() + "Z",
+        "expires_at": expires_at.isoformat() + "Z",
     }
 
 
