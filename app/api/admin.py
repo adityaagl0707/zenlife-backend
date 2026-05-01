@@ -227,6 +227,70 @@ def _trigger_body_age(report_id: int, db: Session) -> None:
         pass  # Never fail the response due to body-age errors
 
 
+def _sync_organs_bg(report_id: int, db: Session) -> None:
+    """Background helper: re-sync organ scores whenever findings change."""
+    try:
+        report = db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            return
+        patient_gender = report.order.patient_gender if report.order else None
+        canonical_names = {defn["organ_name"] for defn in ORGAN_DEFINITIONS}
+        stale = (
+            db.query(OrganScore)
+            .filter(OrganScore.report_id == report_id, OrganScore.organ_name.notin_(canonical_names))
+            .all()
+        )
+        for row in stale:
+            db.delete(row)
+        findings = db.query(Finding).filter(Finding.report_id == report_id).all()
+        finding_sev = {f.name.lower().strip(): f.severity for f in findings}
+        for defn in ORGAN_DEFINITIONS:
+            organ_gender = defn.get("gender", "U")
+            if organ_gender == "F" and patient_gender and patient_gender.upper() in ("M", "MALE"):
+                continue
+            if organ_gender == "M" and patient_gender and patient_gender.upper() in ("F", "FEMALE"):
+                continue
+            counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
+            for p in defn["params"]:
+                sev = finding_sev.get(p)
+                if sev and sev in counts:
+                    counts[sev] += 1
+            severity = (
+                "critical" if counts["critical"] > 0 else
+                "major"    if counts["major"] > 0 else
+                "minor"    if counts["minor"] > 0 else
+                "normal"
+            )
+            existing = (
+                db.query(OrganScore)
+                .filter(OrganScore.report_id == report_id, OrganScore.organ_name == defn["organ_name"])
+                .first()
+            )
+            if existing:
+                existing.severity       = severity
+                existing.risk_label     = RISK_LABELS[severity]
+                existing.critical_count = counts["critical"]
+                existing.major_count    = counts["major"]
+                existing.minor_count    = counts["minor"]
+                existing.normal_count   = counts["normal"]
+            else:
+                db.add(OrganScore(
+                    report_id      = report_id,
+                    organ_name     = defn["organ_name"],
+                    severity       = severity,
+                    risk_label     = RISK_LABELS[severity],
+                    icon           = defn["icon"],
+                    critical_count = counts["critical"],
+                    major_count    = counts["major"],
+                    minor_count    = counts["minor"],
+                    normal_count   = counts["normal"],
+                    display_order  = defn["display_order"],
+                ))
+        db.commit()
+    except Exception:
+        pass  # Never fail the response due to organ-sync errors
+
+
 @router.post("/reports/{report_id}/findings")
 def add_finding(report_id: int, body: CreateFinding, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     if not db.query(Report).filter(Report.id == report_id).first():
@@ -241,6 +305,7 @@ def add_finding(report_id: int, body: CreateFinding, background_tasks: Backgroun
     db.commit()
     db.refresh(finding)
     background_tasks.add_task(_trigger_body_age, report_id, db)
+    background_tasks.add_task(_sync_organs_bg, report_id, db)
     return {"id": finding.id}
 
 
@@ -502,6 +567,7 @@ def import_section_as_findings(report_id: int, section_type: str, background_tas
 
     db.commit()
     background_tasks.add_task(_trigger_body_age, report_id, db)
+    background_tasks.add_task(_sync_organs_bg, report_id, db)
     return {"ok": True, "imported": created}
 
 
