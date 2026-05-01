@@ -247,6 +247,35 @@ def classify_severity(value_str: str, normal_range: str) -> str:
             return "critical"
 
 
+# Synonyms map — maps alias spellings (lowercase) to canonical parameter names.
+# When an uploaded lab template / report uses an alias, we normalise it to
+# the canonical name before lookup so it matches the system's parameter list.
+PARAM_SYNONYMS = {
+    "fasting blood sugar":         "Fasting Blood Glucose",
+    "fasting glucose":             "Fasting Blood Glucose",
+    "fbs":                         "Fasting Blood Glucose",
+    "glucose":                     "Fasting Blood Glucose",
+    "fasting blood glucose test":  "Fasting Blood Glucose",
+    "alk phos":                    "ALP",
+    "alkaline phosphatase":        "ALP",
+    "c reactive protein":          "hs-CRP",
+    "c-reactive protein":          "hs-CRP",
+    "crp":                         "hs-CRP",
+    "lymph %":                     "Lymphocytes",
+    "lymphocyte %":                "Lymphocytes",
+    "lymphocyte percentage":       "Lymphocytes",
+    "lymphocytes %":               "Lymphocytes",
+    "leukocytes":                  "WBC",
+}
+
+
+def normalise_param_name(name: str) -> str:
+    """Resolve an alias spelling to the canonical parameter name."""
+    if not name:
+        return name
+    return PARAM_SYNONYMS.get(name.strip().lower(), name)
+
+
 def parse_excel_lab_results(file_bytes: bytes) -> list[dict]:
     """Parse uploaded Excel and return classified findings."""
     import io
@@ -289,6 +318,9 @@ def parse_excel_lab_results(file_bytes: bytes) -> list[dict]:
 
         if not name or not value or value in ('', 'None', '-', 'N/A'):
             continue
+
+        # Normalise alias spellings to the canonical name
+        name = normalise_param_name(name)
 
         # Find matching master marker for organ/test_type info
         master = next((m for m in MARKERS if m['name'].lower() == name.lower()), None)

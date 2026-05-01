@@ -145,6 +145,9 @@ SECTION_PARAMETERS = {
         {"name": "HE4", "unit": "pmol/L", "normal": "<70"},
         {"name": "CA 15-3", "unit": "U/mL", "normal": "<25"},
         {"name": "DHEA-S", "unit": "µg/dL", "normal": "35–430"},
+        # Female cervical screening (recorded as part of women's blood/lab panel)
+        {"name": "Pap Smear", "unit": "", "normal": "Negative for malignancy"},
+        {"name": "HPV DNA Test", "unit": "", "normal": "Negative"},
     ],
 
     "urine": [
