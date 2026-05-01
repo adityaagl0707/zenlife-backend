@@ -602,3 +602,67 @@ Return ONLY a valid JSON array (no markdown):
             pass
         print(f"[generate_priorities] Could not parse AI response: {e}\nFirst 400 chars: {raw[:400]}")
         return []
+
+
+_FALLBACK_STARTERS = [
+    "What are my most critical findings?",
+    "What lifestyle changes should I make?",
+    "How serious is my ZenScore?",
+    "Which findings need urgent attention?",
+]
+
+
+def generate_chat_starters(report, findings, organs, body_age=None) -> list:
+    """Generate 4 personalised conversation-starter questions based on this report."""
+    if not settings.anthropic_api_key:
+        return _FALLBACK_STARTERS
+
+    crit = [f for f in findings if (f.get("severity") or "").lower() == "critical"]
+    major = [f for f in findings if (f.get("severity") or "").lower() == "major"]
+    crit_organs = [o for o in organs if (o.get("severity") or "").lower() == "critical"]
+    major_organs = [o for o in organs if (o.get("severity") or "").lower() == "major"]
+
+    def fmt(items, key="name"):
+        return ", ".join(f.get(key) or "" for f in items[:6]) or "none"
+
+    body_age_line = ""
+    if body_age and body_age.get("zen_age") is not None:
+        body_age_line = f"ZenAge: {body_age.get('zen_age')} (chronological {body_age.get('chronological_age', '?')})"
+
+    prompt = f"""Generate exactly 4 short conversation-starter questions a patient might
+ask their AI health assistant about their own ZenScan report. Each question
+should be in the patient's voice (first person), under 10 words, and SPECIFIC
+to findings in this report (not generic).
+
+Patient report context:
+- ZenScore: {report.get('coverage_index')}, Overall severity: {(report.get('overall_severity') or 'normal').upper()}
+- Critical organ systems: {fmt(crit_organs, 'organ_name')}
+- Major organ systems: {fmt(major_organs, 'organ_name')}
+- Critical findings: {fmt(crit)}
+- Major findings: {fmt(major)}
+{body_age_line}
+
+Return ONLY a JSON array of 4 strings. No prose, no markdown.
+Example: ["Why is my LDL so high?", "What does a CAC of 480 mean?", "How can I lower my fatty liver risk?", "Should I see a cardiologist?"]"""
+
+    try:
+        client = Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = (response.content[0].text or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.rstrip("`").strip()
+        result = json.loads(raw)
+        if isinstance(result, list):
+            cleaned = [str(s).strip() for s in result if str(s).strip()]
+            if cleaned:
+                return cleaned[:4]
+    except Exception as e:
+        print(f"[generate_chat_starters] Falling back to defaults: {e}")
+    return _FALLBACK_STARTERS
