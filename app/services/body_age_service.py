@@ -171,9 +171,11 @@ def calculate_zen_age(report, findings: list, pheno_result: dict) -> dict:
     """
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-    # Build a rich context for Claude
-    actual_age = getattr(report.order, "patient_age", None) if hasattr(report, "order") else None
-    gender = getattr(report.order, "patient_gender", "Unknown") if hasattr(report, "order") else "Unknown"
+    # Build a rich context for Claude. `report` is a Mongo dict — load the order
+    from ..core import mongo
+    order = mongo.Order.find_one({"id": report.get("order_id") if isinstance(report, dict) else getattr(report, "order_id", None)}) or {}
+    actual_age = order.get("patient_age")
+    gender = order.get("patient_gender", "Unknown")
 
     # Gather all findings with values for Claude
     findings_summary = []

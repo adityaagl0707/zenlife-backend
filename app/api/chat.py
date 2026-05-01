@@ -1,10 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from ..core.database import get_db
-from ..models.user import User
-from ..models.report import Report, ChatMessage
-from ..models.order import Order
+from ..core import mongo
 from ..api.deps import get_current_user
 from ..services.ai_service import chat_with_zeno
 
@@ -15,19 +11,36 @@ class ChatRequest(BaseModel):
     message: str
 
 
+def _user_owns_report(report_id: int, user_id: int):
+    """Returns the report dict if it exists and belongs to the user, else None."""
+    report = mongo.Report.find_one({"id": report_id})
+    if not report:
+        return None
+    order = mongo.Order.find_one({"id": report["order_id"]})
+    if not order or order.get("user_id") != user_id:
+        return None
+    return report
+
+
 @router.get("/{report_id}/history")
-def get_chat_history(report_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    report = db.query(Report).join(Order).filter(Report.id == report_id, Order.user_id == current_user.id).first()
+def get_chat_history(report_id: int, current_user=Depends(get_current_user)):
+    report = _user_owns_report(report_id, current_user["id"])
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    msgs = db.query(ChatMessage).filter(ChatMessage.report_id == report_id).order_by(ChatMessage.created_at).all()
-    return [{"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()} for m in msgs]
+    msgs = sorted(
+        mongo.ChatMessage.find({"report_id": report_id}),
+        key=lambda m: m.get("created_at"),
+    )
+    return [
+        {"role": m["role"], "content": m["content"], "created_at": m["created_at"].isoformat()}
+        for m in msgs
+    ]
 
 
 @router.post("/{report_id}/message")
-def send_message(report_id: int, req: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    report = db.query(Report).join(Order).filter(Report.id == report_id, Order.user_id == current_user.id).first()
+def send_message(report_id: int, req: ChatRequest, current_user=Depends(get_current_user)):
+    report = _user_owns_report(report_id, current_user["id"])
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    reply = chat_with_zeno(report, req.message, db)
+    reply = chat_with_zeno(report, req.message)
     return {"role": "assistant", "content": reply}

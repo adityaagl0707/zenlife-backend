@@ -135,6 +135,20 @@ MARKERS = [
     {"name": "Fat Mass Index", "description": "Standardised Body Fat", "normal_range": "< 9", "unit": "kg/m²", "test_type": "dexa", "organs": ["Endocrine & Metabolic Health", "Vascular Health"]},
     {"name": "Trunk:Limb Fat Ratio", "description": "Central vs Peripheral Fat", "normal_range": "< 1.2", "unit": "ratio", "test_type": "dexa", "organs": ["Endocrine & Metabolic Health", "Vascular Health"]},
     {"name": "P-Wave Duration", "description": "Atrial Conduction Time / AF Risk", "normal_range": "< 120", "unit": "ms", "test_type": "ecg", "organs": ["Heart", "Vascular Health"]},
+    # Female-specific markers
+    {"name": "FSH", "description": "Follicle Stimulating Hormone", "normal_range": "3 - 10", "unit": "mIU/mL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "LH", "description": "Luteinizing Hormone", "normal_range": "2 - 15", "unit": "mIU/mL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "Progesterone", "description": "Female Reproductive Hormone", "normal_range": "0.2 - 1.5", "unit": "ng/mL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "Prolactin", "description": "Lactation & Reproductive Hormone", "normal_range": "2 - 29", "unit": "ng/mL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "AMH", "description": "Anti-Müllerian Hormone / Ovarian Reserve", "normal_range": "1.0 - 3.5", "unit": "ng/mL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "HE4", "description": "Human Epididymis Protein 4 / Ovarian Cancer Marker", "normal_range": "< 70", "unit": "pmol/L", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "CA 15-3", "description": "Breast Cancer Marker", "normal_range": "< 25", "unit": "U/mL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    {"name": "DHEA-S", "description": "Adrenal Androgen (Female)", "normal_range": "35 - 430", "unit": "µg/dL", "test_type": "blood_urine", "organs": ["Women's Health"]},
+    # Female-specific imaging markers
+    {"name": "Breast Ultrasound", "description": "Breast Tissue Assessment", "normal_range": "Normal", "unit": "", "test_type": "usg", "organs": ["Women's Health"]},
+    {"name": "Transvaginal Ultrasound", "description": "Pelvic Organ Assessment", "normal_range": "Normal", "unit": "", "test_type": "usg", "organs": ["Women's Health"]},
+    {"name": "Endometrial Thickness", "description": "Uterine Lining Thickness", "normal_range": "< 12", "unit": "mm", "test_type": "usg", "organs": ["Women's Health"]},
+    {"name": "Mammography", "description": "Breast Cancer Screening", "normal_range": "BIRADS 1", "unit": "", "test_type": "usg", "organs": ["Women's Health"]},
 ]
 
 

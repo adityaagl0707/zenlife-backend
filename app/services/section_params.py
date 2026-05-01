@@ -136,6 +136,15 @@ SECTION_PARAMETERS = {
         {"name": "AFP", "unit": "ng/mL", "normal": "<10"},
         {"name": "CEA", "unit": "ng/mL", "normal": "<3"},
         {"name": "CA-125", "unit": "U/mL", "normal": "<35"},
+        # Female-specific hormones & markers
+        {"name": "FSH", "unit": "mIU/mL", "normal": "3–10"},
+        {"name": "LH", "unit": "mIU/mL", "normal": "2–15"},
+        {"name": "Progesterone", "unit": "ng/mL", "normal": "0.2–1.5 (follicular) / 5–20 (luteal)"},
+        {"name": "Prolactin", "unit": "ng/mL", "normal": "2–29"},
+        {"name": "AMH", "unit": "ng/mL", "normal": "1.0–3.5"},
+        {"name": "HE4", "unit": "pmol/L", "normal": "<70"},
+        {"name": "CA 15-3", "unit": "U/mL", "normal": "<25"},
+        {"name": "DHEA-S", "unit": "µg/dL", "normal": "35–430"},
     ],
 
     "urine": [
@@ -309,6 +318,11 @@ SECTION_PARAMETERS = {
         {"name": "Liver Steatosis Grade", "unit": "", "normal": "Grade 0"},
         # Kidney (structural)
         {"name": "Renal Cortical Thickness", "unit": "mm", "normal": ">10"},
+        # Female-specific imaging
+        {"name": "Breast Ultrasound", "unit": "", "normal": "Normal"},
+        {"name": "Transvaginal Ultrasound", "unit": "", "normal": "Normal"},
+        {"name": "Endometrial Thickness", "unit": "mm", "normal": "<12"},
+        {"name": "Mammography", "unit": "", "normal": "BIRADS 1"},
     ],
 
     "mri": [

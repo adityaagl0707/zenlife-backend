@@ -9,8 +9,7 @@ import json
 from anthropic import Anthropic
 from google import genai as google_genai
 from google.genai import types as google_types
-from sqlalchemy.orm import Session
-from ..models.report import Report, Finding, OrganScore, ChatMessage
+from ..core import mongo
 from ..core.config import get_settings
 from .section_params import SECTION_PARAMETERS, SECTION_META
 
@@ -72,7 +71,7 @@ The patient is frustrated, upset, scared, or emotionally charged.
 }
 
 
-def classify_persona(report: Report, user_message: str, history: list) -> str:
+def classify_persona(report, user_message: str, history: list) -> str:
     """
     Rule-based persona classifier. Runs on every turn; cost = zero (no API call).
     Returns one of: 'celebratory' | 'calm_structured' | 'plain_language' | 'empathetic'
@@ -189,9 +188,10 @@ Example tone:
 You are NOT a replacement for in-person care. When something truly needs a specialist or urgent attention, say so warmly and directly."""
 
 
-def build_report_context(report: Report, db: Session) -> str:
-    findings = db.query(Finding).filter(Finding.report_id == report.id).all()
-    organs = db.query(OrganScore).filter(OrganScore.report_id == report.id).all()
+def build_report_context(report) -> str:
+    findings = mongo.Finding.find({"report_id": report["id"]})
+    organs = mongo.OrganScore.find({"report_id": report["id"]})
+    order = mongo.Order.find_one({"id": report["order_id"]}) or {}
 
     critical = [f for f in findings if f.severity == "critical"]
     major    = [f for f in findings if f.severity == "major"]
@@ -204,13 +204,15 @@ def build_report_context(report: Report, db: Session) -> str:
             line += f"\n    → {f.clinical_findings}"
         return line
 
+    rd = report.get("report_date")
+    rd_str = rd.strftime('%d %b %Y') if rd else "N/A"
     lines = [
         "=== PATIENT OVERVIEW ===",
-        f"Name: {report.order.patient_name}",
-        f"Age: {report.order.patient_age}  |  Gender: {report.order.patient_gender}",
-        f"Report Date: {report.report_date.strftime('%d %b %Y')}",
-        f"Overall Health Status: {report.overall_severity.upper()}",
-        f"Scan Coverage: {report.coverage_index}%",
+        f"Name: {order.get('patient_name', 'Patient')}",
+        f"Age: {order.get('patient_age', 'N/A')}  |  Gender: {order.get('patient_gender', 'N/A')}",
+        f"Report Date: {rd_str}",
+        f"Overall Health Status: {(report.get('overall_severity') or 'normal').upper()}",
+        f"Scan Coverage: {report.get('coverage_index', 0)}%",
         "",
         "=== ORGAN SYSTEM SUMMARY ===",
         "(Use this for the big-picture view of how each body system is doing)",
@@ -256,19 +258,16 @@ def build_report_context(report: Report, db: Session) -> str:
     return "\n".join(lines)
 
 
-def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
+def chat_with_zeno(report, user_message: str) -> str:
     """Zeno AI chat — powered by Google Gemini 2.5 Flash."""
-    report_context = build_report_context(report, db)
+    report_context = build_report_context(report)
 
-    # Load chat history (last 20 messages)
-    history_rows = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.report_id == report.id)
-        .order_by(ChatMessage.created_at.asc())
-        .limit(20)
-        .all()
-    )
-    history = [{"role": m.role, "content": m.content} for m in history_rows]
+    # Load chat history (last 20 messages, oldest first)
+    history_rows = sorted(
+        mongo.ChatMessage.find({"report_id": report["id"]}),
+        key=lambda m: m.get("created_at") or 0,
+    )[-20:]
+    history = [{"role": m.get("role"), "content": m.get("content")} for m in history_rows]
 
     # ── Persona classification (rule-based, zero cost) ─────────────────────
     persona = classify_persona(report, user_message, history)
@@ -314,10 +313,10 @@ def chat_with_zeno(report: Report, user_message: str, db: Session) -> str:
             "Please try again in a moment — I'll be back shortly."
         )
 
-    # Save to DB
-    db.add(ChatMessage(report_id=report.id, role="user", content=user_message))
-    db.add(ChatMessage(report_id=report.id, role="assistant", content=reply))
-    db.commit()
+    # Save to MongoDB
+    now = mongo.now()
+    mongo.ChatMessage.insert({"report_id": report["id"], "role": "user", "content": user_message, "created_at": now})
+    mongo.ChatMessage.insert({"report_id": report["id"], "role": "assistant", "content": reply, "created_at": now})
 
     return reply
 
@@ -409,7 +408,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
         return {"_parse_error": raw[:500]}
 
 
-def generate_priorities(report: Report, findings: list, organs: list) -> list:
+def generate_priorities(report, findings: list, organs: list) -> list:
     """
     Use Claude to generate 3-5 prioritised health action plans for the patient.
     Returns a list of dicts: {title, why_important, diet, exercise, sleep, supplements}.
@@ -417,20 +416,22 @@ def generate_priorities(report: Report, findings: list, organs: list) -> list:
     if not settings.anthropic_api_key:
         return []
 
-    critical = [f for f in findings if f.severity == "critical"]
-    major = [f for f in findings if f.severity == "major"]
-    minor = [f for f in findings if f.severity == "minor"]
+    order = mongo.Order.find_one({"id": report.get("order_id")}) or {}
+
+    critical = [f for f in findings if f.get("severity") == "critical"]
+    major = [f for f in findings if f.get("severity") == "major"]
+    minor = [f for f in findings if f.get("severity") == "minor"]
 
     def fmt(items):
-        return "\n".join(f"  - {f.name}: {f.value or 'N/A'} {f.unit or ''}" for f in items) or "  None"
+        return "\n".join(f"  - {f.get('name')}: {f.get('value') or 'N/A'} {f.get('unit') or ''}" for f in items) or "  None"
 
     organ_lines = "\n".join(
-        f"  - {o.organ_name}: {o.severity.upper()} ({o.critical_count}C/{o.major_count}M/{o.minor_count}m/{o.normal_count}n)"
+        f"  - {o.get('organ_name')}: {(o.get('severity') or 'normal').upper()} ({o.get('critical_count', 0)}C/{o.get('major_count', 0)}M/{o.get('minor_count', 0)}m/{o.get('normal_count', 0)}n)"
         for o in organs
     )
 
-    prompt = f"""Patient: {report.order.patient_name}, Age: {report.order.patient_age}, Gender: {report.order.patient_gender}
-Overall Severity: {report.overall_severity.upper()}
+    prompt = f"""Patient: {order.get('patient_name', 'Patient')}, Age: {order.get('patient_age', 'N/A')}, Gender: {order.get('patient_gender', 'N/A')}
+Overall Severity: {(report.get('overall_severity') or 'normal').upper()}
 
 === ORGAN SCORES ===
 {organ_lines}
