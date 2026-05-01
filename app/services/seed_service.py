@@ -23,7 +23,7 @@ def seed_demo():
 
     # ── Order ─────────────────────────────────────────────────────────────
     order = {
-        "booking_id": "ZEN000034",
+        "booking_id": "Order000034",
         "user_id": user["id"],
         "patient_name": "Arjun Mehta",
         "patient_age": 30,
