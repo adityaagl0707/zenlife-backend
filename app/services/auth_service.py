@@ -84,11 +84,28 @@ def signup_user(*, phone: str, first_name: str, last_name: str, age: int, gender
         "email": None,
         "zen_id": _generate_zen_id(),
         "password_hash": hash_password(password),
+        "must_change_password": False,
         "is_active": True,
         "created_at": mongo.now(),
     }
     mongo.User.insert(user)
     return mongo.doc(user)
+
+
+def change_password(user_id: int, new_password: str) -> bool:
+    if len(new_password) < 6:
+        raise ValueError("Password must be at least 6 characters")
+    user = mongo.User.find_one({"id": user_id})
+    if not user:
+        return False
+    mongo.User.update_one(
+        {"id": user_id},
+        {"$set": {
+            "password_hash": hash_password(new_password),
+            "must_change_password": False,
+        }},
+    )
+    return True
 
 
 def login_with_password(phone: str, password: str):

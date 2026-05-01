@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
 from ..core import mongo
+from ..services import auth_service
 from ..services.lab_classifier import parse_excel_lab_results, generate_template_excel, MARKERS, classify_severity
 from ..services.section_params import SECTION_PARAMETERS, SECTION_META
 from ..services.ai_service import extract_report_parameters, generate_priorities
@@ -145,11 +146,16 @@ def create_patient(body: CreatePatient):
         "age": body.age,
         "gender": body.gender,
         "email": body.email,
+        "zen_id": auth_service._generate_zen_id(),
+        # Admin-created patients get a default password and are forced to
+        # change it on first login.
+        "password_hash": auth_service.hash_password("123456"),
+        "must_change_password": True,
         "is_active": True,
         "created_at": mongo.now(),
     }
     mongo.User.insert(user)
-    return {"id": user["id"], "name": user["name"], "phone": user["phone"]}
+    return {"id": user["id"], "name": user["name"], "phone": user["phone"], "zen_id": user["zen_id"]}
 
 
 @router.post("/patients/{user_id}/orders")

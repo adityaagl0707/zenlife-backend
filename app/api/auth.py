@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from ..services import auth_service
+from .deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -37,6 +38,7 @@ def _user_payload(user) -> dict:
         "zen_id": user.get("zen_id"),
         "age": user.get("age"),
         "gender": user.get("gender"),
+        "must_change_password": bool(user.get("must_change_password")),
     }
 
 
@@ -95,3 +97,21 @@ def password_login(req: PasswordLoginRequest):
         raise HTTPException(status_code=401, detail="Invalid phone number or password")
     token = auth_service.create_token_for_user(user)
     return {"access_token": token, "token_type": "bearer", "user": _user_payload(user)}
+
+
+class ChangePasswordRequest(BaseModel):
+    new_password: str = Field(min_length=6)
+    confirm_password: str
+
+
+@router.post("/change-password")
+def change_password(req: ChangePasswordRequest, current_user=Depends(get_current_user)):
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    try:
+        ok = auth_service.change_password(current_user["id"], req.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True}
