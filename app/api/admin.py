@@ -41,6 +41,12 @@ class CreateReport(BaseModel):
     next_visit: Optional[str] = None
     summary: str = ""
 
+class UpdateReport(BaseModel):
+    coverage_index: Optional[float] = None
+    overall_severity: Optional[str] = None
+    summary: Optional[str] = None
+    next_visit: Optional[str] = None
+
 class CreateOrganScore(BaseModel):
     organ_name: str
     severity: str = "normal"
@@ -163,6 +169,24 @@ def create_report(order_id: int, body: CreateReport, db: Session = Depends(get_d
     db.commit()
     db.refresh(report)
     return {"id": report.id}
+
+
+@router.patch("/reports/{report_id}")
+def update_report(report_id: int, body: UpdateReport, db: Session = Depends(get_db)):
+    """Update report summary fields (ZenScore, severity, summary, next visit)."""
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if body.coverage_index is not None:
+        report.coverage_index = body.coverage_index
+    if body.overall_severity is not None:
+        report.overall_severity = body.overall_severity
+    if body.summary is not None:
+        report.summary = body.summary
+    if body.next_visit is not None and body.next_visit:
+        report.next_visit = datetime.fromisoformat(body.next_visit)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/reports/{report_id}/organs")
