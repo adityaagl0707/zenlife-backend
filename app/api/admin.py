@@ -8,7 +8,20 @@ from datetime import datetime
 from ..core import mongo
 from ..services import auth_service
 from ..services.lab_classifier import parse_excel_lab_results, generate_template_excel, MARKERS, classify_severity
-from ..services.section_params import SECTION_PARAMETERS, SECTION_META
+from ..services.section_params import SECTION_PARAMETERS, SECTION_META, filter_params_by_gender
+
+
+def _patient_gender_for_report(report_id):
+    """Look up the patient gender for a given report id."""
+    report = mongo.Report.find_one({"id": report_id})
+    if not report:
+        return None
+    order = mongo.Order.find_one({"id": report.get("order_id")}) or {}
+    g = order.get("patient_gender")
+    if not g and order.get("user_id"):
+        u = mongo.User.find_one({"id": order["user_id"]})
+        g = (u or {}).get("gender")
+    return g
 from ..services.ai_service import extract_report_parameters, generate_priorities
 from ..services.organ_param_map import ORGAN_DEFINITIONS, RISK_LABELS
 
@@ -555,10 +568,19 @@ def get_report_detail(report_id: int):
 # ── Report Sections ───────────────────────────────────────────────────────────
 
 @router.get("/section-params")
-def get_section_params():
+def get_section_params(report_id: Optional[int] = None, gender: Optional[str] = None):
+    """Return the parameter map for all sections.
+    If a report_id (or explicit gender) is provided, sex-specific params
+    that don't apply to this patient are filtered out.
+    """
+    if report_id and not gender:
+        gender = _patient_gender_for_report(report_id)
     return {
         "sections": SECTION_META,
-        "parameters": {k: v for k, v in SECTION_PARAMETERS.items()},
+        "parameters": {
+            k: filter_params_by_gender(v, gender)
+            for k, v in SECTION_PARAMETERS.items()
+        },
     }
 
 
@@ -578,7 +600,8 @@ def get_all_sections(report_id: int):
 @router.get("/reports/{report_id}/sections/{section_type}")
 def get_section(report_id: int, section_type: str):
     section = mongo.ReportSection.find_one({"report_id": report_id, "section_type": section_type})
-    param_defs = SECTION_PARAMETERS.get(section_type, [])
+    gender = _patient_gender_for_report(report_id)
+    param_defs = filter_params_by_gender(SECTION_PARAMETERS.get(section_type, []), gender)
     saved = section.get("parameters") or {} if section else {}
     return {
         "section_type": section_type,
@@ -626,7 +649,8 @@ async def extract_section(report_id: int, section_type: str, file: UploadFile = 
     file_b64 = base64.b64encode(content).decode()
     mime = file.content_type or "image/jpeg"
 
-    extracted = extract_report_parameters(section_type, file_b64, mime)
+    gender = _patient_gender_for_report(report_id)
+    extracted = extract_report_parameters(section_type, file_b64, mime, gender=gender)
 
     if "_parse_error" in extracted or "error" in extracted:
         raise HTTPException(status_code=422, detail=extracted.get("_parse_error") or extracted.get("error"))

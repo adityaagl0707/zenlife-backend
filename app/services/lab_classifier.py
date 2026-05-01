@@ -539,8 +539,10 @@ def generate_template_excel(patient=None, section=None) -> bytes:
     # admin panel exactly. Otherwise fall back to the broader MARKERS list.
     use_section_params = (section or "").lower() in ("blood", "urine")
     if use_section_params:
-        from .section_params import SECTION_PARAMETERS
-        section_defs = SECTION_PARAMETERS.get(section.lower(), [])
+        from .section_params import SECTION_PARAMETERS, filter_params_by_gender
+        all_defs = SECTION_PARAMETERS.get(section.lower(), [])
+        # Filter by patient gender if available so females don't see PSA, etc.
+        section_defs = filter_params_by_gender(all_defs, (patient or {}).get("gender"))
 
         # Build a description lookup so each section param gets a meaningful
         # "What Marker Is This" value. Order of precedence:

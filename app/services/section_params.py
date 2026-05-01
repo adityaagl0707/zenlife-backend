@@ -104,7 +104,7 @@ SECTION_PARAMETERS = {
         {"name": "Cortisol", "unit": "µg/dL", "normal": "6–23"},
         {"name": "DHEA", "unit": "µg/dL", "normal": "80–560(M) / 35–430(F)"},
         {"name": "Testosterone", "unit": "ng/dL", "normal": "270–1070(M) / 15–70(F)"},
-        {"name": "PSA", "unit": "ng/mL", "normal": "<4.0"},
+        {"name": "PSA", "unit": "ng/mL", "normal": "<4.0", "gender": "M"},
         # Inflammation
         {"name": "hs-CRP", "unit": "mg/L", "normal": "<1.0"},
         {"name": "IgE", "unit": "IU/mL", "normal": "<100"},
@@ -137,17 +137,17 @@ SECTION_PARAMETERS = {
         {"name": "CEA", "unit": "ng/mL", "normal": "<3"},
         {"name": "CA-125", "unit": "U/mL", "normal": "<35"},
         # Female-specific hormones & markers
-        {"name": "FSH", "unit": "mIU/mL", "normal": "3–10"},
-        {"name": "LH", "unit": "mIU/mL", "normal": "2–15"},
-        {"name": "Progesterone", "unit": "ng/mL", "normal": "0.2–1.5 (follicular) / 5–20 (luteal)"},
-        {"name": "Prolactin", "unit": "ng/mL", "normal": "2–29"},
-        {"name": "AMH", "unit": "ng/mL", "normal": "1.0–3.5"},
-        {"name": "HE4", "unit": "pmol/L", "normal": "<70"},
-        {"name": "CA 15-3", "unit": "U/mL", "normal": "<25"},
-        {"name": "DHEA-S", "unit": "µg/dL", "normal": "35–430"},
+        {"name": "FSH", "unit": "mIU/mL", "normal": "3–10", "gender": "F"},
+        {"name": "LH", "unit": "mIU/mL", "normal": "2–15", "gender": "F"},
+        {"name": "Progesterone", "unit": "ng/mL", "normal": "0.2–1.5 (follicular) / 5–20 (luteal)", "gender": "F"},
+        {"name": "Prolactin", "unit": "ng/mL", "normal": "2–29", "gender": "F"},
+        {"name": "AMH", "unit": "ng/mL", "normal": "1.0–3.5", "gender": "F"},
+        {"name": "HE4", "unit": "pmol/L", "normal": "<70", "gender": "F"},
+        {"name": "CA 15-3", "unit": "U/mL", "normal": "<25", "gender": "F"},
+        {"name": "DHEA-S", "unit": "µg/dL", "normal": "35–430", "gender": "F"},
         # Female cervical screening (recorded as part of women's blood/lab panel)
-        {"name": "Pap Smear", "unit": "", "normal": "Negative for malignancy"},
-        {"name": "HPV DNA Test", "unit": "", "normal": "Negative"},
+        {"name": "Pap Smear", "unit": "", "normal": "Negative for malignancy", "gender": "F"},
+        {"name": "HPV DNA Test", "unit": "", "normal": "Negative", "gender": "F"},
     ],
 
     "urine": [
@@ -478,3 +478,32 @@ SECTION_META = {
     "mri":            {"label": "MRI Report",           "icon": "🧲", "has_key_findings": True},
     "mammography":    {"label": "Mammography",          "icon": "🎀", "has_key_findings": True},
 }
+
+
+def _gender_norm(gender):
+    """Normalise patient gender to 'M', 'F', or None."""
+    if not gender:
+        return None
+    g = str(gender).strip().upper()
+    if g in ("M", "MALE"):
+        return "M"
+    if g in ("F", "FEMALE"):
+        return "F"
+    return None
+
+
+def filter_params_by_gender(params, gender):
+    """Drop sex-specific params that don't apply to this patient.
+    A param without a 'gender' key applies to everyone.
+    A param marked gender='M' is dropped for female patients (and vice versa).
+    If the patient gender is unknown, all params are returned.
+    """
+    g = _gender_norm(gender)
+    if g is None:
+        return list(params)
+    return [p for p in params if p.get("gender") in (None, "U", g)]
+
+
+def get_section_params(section_type, gender=None):
+    """Return the parameter list for a section, filtered by patient gender."""
+    return filter_params_by_gender(SECTION_PARAMETERS.get(section_type, []), gender)

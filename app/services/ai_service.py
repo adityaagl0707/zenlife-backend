@@ -321,7 +321,7 @@ def chat_with_zeno(report, user_message: str) -> str:
     return reply
 
 
-def extract_report_parameters(section_type: str, file_b64: str, file_mime: str) -> dict:
+def extract_report_parameters(section_type: str, file_b64: str, file_mime: str, gender=None) -> dict:
     """
     Use Claude vision/document to extract parameter values from an uploaded report file.
     Returns {param_name: {value, unit, normal, severity, clinical_findings, recommendations}}.
@@ -330,7 +330,8 @@ def extract_report_parameters(section_type: str, file_b64: str, file_mime: str) 
     if not settings.anthropic_api_key:
         return {"error": "No API key configured"}
 
-    params = SECTION_PARAMETERS.get(section_type, [])
+    from .section_params import filter_params_by_gender
+    params = filter_params_by_gender(SECTION_PARAMETERS.get(section_type, []), gender)
     param_list = "\n".join(
         f'- "{p["name"]}" (unit: {p["unit"] or "text"}, normal: {p["normal"]})'
         for p in params
