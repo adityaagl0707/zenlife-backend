@@ -428,10 +428,31 @@ def generate_template_excel(patient=None, section=None) -> bytes:
         "Other": PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid"),
     }
 
+    # When a specific blood/urine section is requested, drive the template
+    # off SECTION_PARAMETERS so the parameter list matches the on-screen
+    # admin panel exactly. Otherwise fall back to the broader MARKERS list.
+    use_section_params = (section or "").lower() in ("blood", "urine")
+    if use_section_params:
+        from .section_params import SECTION_PARAMETERS
+        section_defs = SECTION_PARAMETERS.get(section.lower(), [])
+        # Wrap as the same shape as MARKERS so the loop below works
+        markers_iter = [
+            {
+                "name": p["name"],
+                "description": p.get("description", ""),
+                "normal_range": p.get("normal", ""),
+                "unit": p.get("unit", ""),
+                "organs": [section.title()],
+            }
+            for p in section_defs
+        ]
+    else:
+        markers_iter = MARKERS
+
     # Group markers by primary organ
     current_group = None
     row = header_row + 1
-    for marker in MARKERS:
+    for marker in markers_iter:
         primary_organ = marker['organs'][0] if marker['organs'] else 'Other'
 
         # Group header row
