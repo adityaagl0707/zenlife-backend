@@ -15,7 +15,7 @@ settings = get_settings()
 app = FastAPI(
     title="ZenLife API",
     description="Backend for ZenLife — preventive health intelligence platform",
-    version="2.0.0",
+    version="2.0.1",
 )
 
 app.add_middleware(
