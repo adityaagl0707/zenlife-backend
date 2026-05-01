@@ -5,6 +5,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Heart Health",
         "icon": "❤️",
         "display_order": 1,
+        "gender": "U",
         "params": [
             "agaston score", "agatston score", "ldl cholesterol", "homocysteine levels",
             "total cholesterol", "hdl cholesterol", "triglycerides", "non-hdl cholesterol",
@@ -23,6 +24,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Endocrine & Metabolic Health",
         "icon": "⚡",
         "display_order": 2,
+        "gender": "U",
         "params": [
             "gynoid fat", "visceral fat mass", "ldl cholesterol", "fasting blood glucose test",
             "total cholesterol", "hdl cholesterol", "triglycerides", "non-hdl cholesterol",
@@ -43,6 +45,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Liver & Digestive Health",
         "icon": "🫀",
         "display_order": 3,
+        "gender": "U",
         "params": [
             "ast", "total protein", "globulin", "alt", "abdominal wall", "ggt",
             "bilirubin (indirect)", "serum albumin/globulin", "albumin", "total bilirubin",
@@ -65,6 +68,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Brain & Cognitive Health",
         "icon": "🧠",
         "display_order": 4,
+        "gender": "U",
         "params": [
             "homocysteine levels", "brain: ischemic causes", "cerebral white matter",
             "brain: degenerative", "brain: post-infective", "brain: infective-active",
@@ -78,6 +82,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Kidney & Urinary Health",
         "icon": "🫘",
         "display_order": 5,
+        "gender": "U",
         "params": [
             "creatinine", "ua (uric acid)", "urinary bladder walls", "urine albumin/creatinine",
             "blood urea nitrogen (bun)", "sodium", "potassium", "bun / creatinine ratio",
@@ -102,6 +107,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Inflammation & Immune Health",
         "icon": "🛡️",
         "display_order": 6,
+        "gender": "U",
         "params": [
             "homocysteine levels", "basophils", "monocytes", "lymphocytes", "eosinophils",
             "ige", "neck lymphnodes", "basophils - count", "monocytes - count",
@@ -114,6 +120,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "General Health, Blood & Nutrients",
         "icon": "🩸",
         "display_order": 7,
+        "gender": "U",
         "params": [
             "gynoid fat", "visceral fat mass", "basophils", "monocytes", "lymphocytes",
             "eosinophils", "vitamin d", "copper", "folate (b9)", "android:gynoid ratio",
@@ -133,6 +140,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Reproductive Health",
         "icon": "🌿",
         "display_order": 8,
+        "gender": "U",
         "params": [
             "cortisol", "dhea", "psa", "testosterone", "pelvic lymphnodes",
             "reproductive health: degenerative", "reproductive health: post-infective",
@@ -146,6 +154,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Bone, Muscle & Joint Health",
         "icon": "🦴",
         "display_order": 9,
+        "gender": "U",
         "params": [
             "spine: discs", "spine curvature", "mineral bone density(z-score)",
             "mineral bone density(t-score)", "rsmi", "lean mass", "psoas muscles",
@@ -163,6 +172,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Lung & Respiratory Health",
         "icon": "🫁",
         "display_order": 10,
+        "gender": "U",
         "params": [
             "neck lymphnodes", "pulmonary fibrosis", "copd / emphysema", "lung vasculature",
             "airway condition", "lung volume", "pneumonia / infection",
@@ -179,6 +189,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Vascular Health",
         "icon": "🩺",
         "display_order": 11,
+        "gender": "U",
         "params": [
             "aorta & branches", "aorta and branches", "iliac vessels", "neck vessels",
             "superior venacava", "ivc and tributaries", "other major vessels",
@@ -194,6 +205,7 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Hormonal & Vitality Health",
         "icon": "⚗️",
         "display_order": 12,
+        "gender": "U",
         "params": [
             "testosterone", "free testosterone", "estradiol (e2)", "shbg",
             "dhea", "igf-1", "cortisol", "cortisol (urine)",
@@ -214,11 +226,35 @@ ORGAN_DEFINITIONS = [
         "organ_name": "Mental & Stress Resilience",
         "icon": "🧘",
         "display_order": 13,
+        "gender": "U",
         "params": [
             "cortisol", "dhea", "nt-probnp",
             "cerebral white matter", "white matter hyperintensity",
             "brain: ischemic causes", "brain: degenerative",
             "basal ganglia", "ventricles", "midbrain", "pons", "meninges",
+        ],
+    },
+    {
+        "organ_name": "Women's Health",
+        "icon": "🌸",
+        "display_order": 14,
+        "gender": "F",
+        "params": [
+            "pap smear", "hpv dna test", "mammography", "breast ultrasound",
+            "transvaginal ultrasound", "endometrial thickness", "pelvic ultrasound",
+            "ca-125", "he4", "ca 15-3", "fsh", "lh", "progesterone", "prolactin",
+            "amh", "estradiol (e2)", "dhea-s", "uterus", "ovaries", "cervix",
+            "endometrium", "breast",
+        ],
+    },
+    {
+        "organ_name": "Men's Health",
+        "icon": "🔵",
+        "display_order": 15,
+        "gender": "M",
+        "params": [
+            "psa", "prostate volume", "testosterone", "free testosterone",
+            "shbg", "prostate", "seminal vesicles",
         ],
     },
 ]

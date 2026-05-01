@@ -497,9 +497,13 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
     """
     Auto-create or update all organ score records (one per organ system in ORGAN_DEFINITIONS),
     computing severity counts from the report's Finding records via the organ-parameter mapping.
+    Gender-specific organ systems are only synced for patients of the matching gender.
     """
-    if not db.query(Report).filter(Report.id == report_id).first():
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+
+    patient_gender = report.order.patient_gender if report.order else None
 
     # ── Step 1: delete stale / renamed organ rows ──────────────────────────
     canonical_names = {defn["organ_name"] for defn in ORGAN_DEFINITIONS}
@@ -518,7 +522,16 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
     findings = db.query(Finding).filter(Finding.report_id == report_id).all()
     finding_sev = {f.name.lower().strip(): f.severity for f in findings}
 
+    organs_synced = 0
     for defn in ORGAN_DEFINITIONS:
+        organ_gender = defn.get("gender", "U")
+        # Skip female-only organs for male patients
+        if organ_gender == "F" and patient_gender and patient_gender.upper() in ("M", "MALE"):
+            continue
+        # Skip male-only organs for female patients
+        if organ_gender == "M" and patient_gender and patient_gender.upper() in ("F", "FEMALE"):
+            continue
+
         counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
         for p in defn["params"]:
             sev = finding_sev.get(p)
@@ -561,9 +574,10 @@ def sync_organs(report_id: int, db: Session = Depends(get_db)):
                 normal_count=counts["normal"],
                 display_order=defn["display_order"],
             ))
+        organs_synced += 1
 
     db.commit()
-    return {"ok": True, "organs": len(ORGAN_DEFINITIONS), "stale_rows_deleted": stale_count}
+    return {"ok": True, "organs": organs_synced, "stale_rows_deleted": stale_count}
 
 
 @router.post("/sync-all-organs")
@@ -571,13 +585,15 @@ def sync_all_organs(db: Session = Depends(get_db)):
     """
     Run organ sync for EVERY report in the database.
     - Deletes any OrganScore rows whose name is not in the canonical ORGAN_DEFINITIONS list.
-    - Creates or updates rows for all 13 canonical organ systems per report.
+    - Creates or updates rows for all canonical organ systems per report, filtered by patient gender.
     """
     canonical_names = {defn["organ_name"] for defn in ORGAN_DEFINITIONS}
     all_reports = db.query(Report).all()
     deleted_total = 0
 
     for report in all_reports:
+        patient_gender = report.order.patient_gender if report.order else None
+
         # ── Step 1: delete stale / renamed organ rows ──────────────────────
         stale = (
             db.query(OrganScore)
@@ -591,11 +607,19 @@ def sync_all_organs(db: Session = Depends(get_db)):
             db.delete(row)
             deleted_total += 1
 
-        # ── Step 2: upsert all canonical organ rows ────────────────────────
+        # ── Step 2: upsert gender-appropriate canonical organ rows ─────────
         findings = db.query(Finding).filter(Finding.report_id == report.id).all()
         finding_sev = {f.name.lower().strip(): f.severity for f in findings}
 
         for defn in ORGAN_DEFINITIONS:
+            organ_gender = defn.get("gender", "U")
+            # Skip female-only organs for male patients
+            if organ_gender == "F" and patient_gender and patient_gender.upper() in ("M", "MALE"):
+                continue
+            # Skip male-only organs for female patients
+            if organ_gender == "M" and patient_gender and patient_gender.upper() in ("F", "FEMALE"):
+                continue
+
             counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
             for p in defn["params"]:
                 sev = finding_sev.get(p)
