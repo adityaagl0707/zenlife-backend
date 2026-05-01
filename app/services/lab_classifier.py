@@ -308,7 +308,7 @@ def parse_excel_lab_results(file_bytes: bytes) -> list[dict]:
     return results
 
 
-def generate_template_excel(patient=None) -> bytes:
+def generate_template_excel(patient=None, section=None) -> bytes:
     """Generate a downloadable Excel template with all markers pre-filled.
 
     If `patient` is provided, a patient-info banner is added at the top
@@ -345,7 +345,11 @@ def generate_template_excel(patient=None) -> bytes:
 
         # Row 1: title (merged)
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
-        c = ws.cell(row=1, column=1, value=" ZenLife — Lab Results Template")
+        section_title = {
+            "blood": " ZenLife — Blood Report Template",
+            "urine": " ZenLife — Urine Analysis Template",
+        }.get((section or "").lower(), " ZenLife — Lab Results Template")
+        c = ws.cell(row=1, column=1, value=section_title)
         c.font = title_font
         c.fill = banner_fill
         c.alignment = Alignment(vertical='center')

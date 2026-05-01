@@ -468,7 +468,7 @@ def add_note(report_id: int, body: CreateNote):
 
 
 @router.get("/lab-template")
-def download_lab_template(report_id: Optional[int] = None):
+def download_lab_template(report_id: Optional[int] = None, section: Optional[str] = None):
     patient_ctx = None
     if report_id:
         report = mongo.Report.find_one({"id": report_id})
@@ -484,10 +484,19 @@ def download_lab_template(report_id: Optional[int] = None):
                 "age": order.get("patient_age") or (user.get("age") if user else None),
                 "gender": order.get("patient_gender") or (user.get("gender") if user else None),
             }
-    content = generate_template_excel(patient=patient_ctx)
-    safe = (patient_ctx or {}).get("patient_name") or "Patient"
-    safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in safe).strip().replace(" ", "_") or "Patient"
-    filename = f"ZenLife_Lab_Template_{safe}.xlsx" if patient_ctx else "ZenLife_Lab_Template.xlsx"
+    content = generate_template_excel(patient=patient_ctx, section=section)
+
+    # Filename: ZenLife_<Section>_<Name>.xlsx
+    section_label = {
+        "blood": "BloodReport",
+        "urine": "UrineAnalysis",
+    }.get((section or "").lower(), "Lab_Template")
+    safe = (patient_ctx or {}).get("patient_name") or ""
+    safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in safe).strip().replace(" ", "_")
+    if safe:
+        filename = f"ZenLife_{section_label}_{safe}.xlsx"
+    else:
+        filename = f"ZenLife_{section_label}.xlsx"
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
