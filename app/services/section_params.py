@@ -442,6 +442,26 @@ SECTION_PARAMETERS = {
         {"name": "Liver Fat %", "unit": "%", "normal": "<5"},
         {"name": "Prostate Volume", "unit": "cc", "normal": "<30"},
     ],
+    "mammography": [
+        {"name": "Right Breast: Mass", "unit": "", "normal": "None"},
+        {"name": "Right Breast: Calcifications", "unit": "", "normal": "None"},
+        {"name": "Right Breast: Architectural Distortion", "unit": "", "normal": "None"},
+        {"name": "Right Breast: Asymmetry", "unit": "", "normal": "None"},
+        {"name": "Right Breast: Skin Thickening", "unit": "", "normal": "None"},
+        {"name": "Right Breast: Nipple Retraction", "unit": "", "normal": "None"},
+        {"name": "Right Breast: Lymphadenopathy", "unit": "", "normal": "None"},
+        {"name": "Right Breast: BI-RADS Category", "unit": "", "normal": "0-2"},
+        {"name": "Left Breast: Mass", "unit": "", "normal": "None"},
+        {"name": "Left Breast: Calcifications", "unit": "", "normal": "None"},
+        {"name": "Left Breast: Architectural Distortion", "unit": "", "normal": "None"},
+        {"name": "Left Breast: Asymmetry", "unit": "", "normal": "None"},
+        {"name": "Left Breast: Skin Thickening", "unit": "", "normal": "None"},
+        {"name": "Left Breast: Nipple Retraction", "unit": "", "normal": "None"},
+        {"name": "Left Breast: Lymphadenopathy", "unit": "", "normal": "None"},
+        {"name": "Left Breast: BI-RADS Category", "unit": "", "normal": "0-2"},
+        {"name": "Breast Density", "unit": "", "normal": "A or B"},
+        {"name": "Overall Assessment", "unit": "", "normal": "Negative / Benign"},
+    ],
 }
 
 SECTION_META = {
@@ -453,4 +473,5 @@ SECTION_META = {
     "chest_xray":     {"label": "Chest X-Ray",          "icon": "🫁", "has_key_findings": True},
     "usg":            {"label": "USG Report",           "icon": "🔊", "has_key_findings": True},
     "mri":            {"label": "MRI Report",           "icon": "🧲", "has_key_findings": True},
+    "mammography":    {"label": "Mammography",          "icon": "🎀", "has_key_findings": True},
 }

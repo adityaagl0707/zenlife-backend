@@ -207,6 +207,50 @@ def unpublish_report(report_id: int):
     return {"ok": True, "is_published": False}
 
 
+# ── Per-test status (Test Status tab) ────────────────────────────────────────
+
+# Tests that count toward "all tests complete". Mammography is gender-aware:
+# only counted as required for female patients; ignored for males.
+ALL_TEST_KEYS = ["blood", "urine", "dexa", "calcium_score", "ecg", "chest_xray", "usg", "mri", "mammography"]
+
+
+def _required_tests_for(gender: Optional[str]) -> list[str]:
+    g = (gender or "").upper()
+    if g in ("F", "FEMALE"):
+        return ALL_TEST_KEYS
+    # Skip mammography for non-female patients
+    return [t for t in ALL_TEST_KEYS if t != "mammography"]
+
+
+@router.get("/reports/{report_id}/test-status")
+def get_test_status(report_id: int):
+    report = mongo.Report.find_one({"id": report_id})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    order = mongo.Order.find_one({"id": report.get("order_id")}) or {}
+    required = _required_tests_for(order.get("patient_gender"))
+    saved = report.get("test_statuses") or {}
+    # Default any missing tests to "pending"
+    return {
+        "test_statuses": {t: saved.get(t, "pending") for t in required},
+        "required_tests": required,
+    }
+
+
+class UpdateTestStatus(BaseModel):
+    test_statuses: Dict[str, str]
+
+
+@router.put("/reports/{report_id}/test-status")
+def update_test_status(report_id: int, body: UpdateTestStatus):
+    if not mongo.Report.find_one({"id": report_id}):
+        raise HTTPException(status_code=404, detail="Report not found")
+    # Whitelist values
+    cleaned = {k: v for k, v in body.test_statuses.items() if v in ("pending", "complete") and k in ALL_TEST_KEYS}
+    mongo.Report.update_one({"id": report_id}, {"$set": {"test_statuses": cleaned}})
+    return {"ok": True, "test_statuses": cleaned}
+
+
 @router.delete("/reports/{report_id}/clear-data")
 def clear_report_data(report_id: int):
     if not mongo.Report.find_one({"id": report_id}):
@@ -223,6 +267,7 @@ def clear_report_data(report_id: int):
             "overall_severity": "normal",
             "summary": "",
             "is_published": False,
+            "test_statuses": {},
         }},
     )
     return {"ok": True}

@@ -4,6 +4,16 @@ from ..api.deps import get_current_user
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
+# Tests required for "all tests complete". Mammography only applies to female patients.
+ALL_TEST_KEYS = ["blood", "urine", "dexa", "calcium_score", "ecg", "chest_xray", "usg", "mri", "mammography"]
+
+
+def _required_tests_for(gender: str | None) -> list[str]:
+    g = (gender or "").upper()
+    if g in ("F", "FEMALE"):
+        return ALL_TEST_KEYS
+    return [t for t in ALL_TEST_KEYS if t != "mammography"]
+
 
 @router.get("/")
 def get_orders(current_user=Depends(get_current_user)):
@@ -11,6 +21,11 @@ def get_orders(current_user=Depends(get_current_user)):
     out = []
     for o in rows:
         report = mongo.Report.find_one({"order_id": o["id"]})
+        tests_complete = False
+        if report:
+            statuses = report.get("test_statuses") or {}
+            required = _required_tests_for(o.get("patient_gender"))
+            tests_complete = all(statuses.get(t) == "complete" for t in required)
         out.append({
             "id": o["id"],
             "booking_id": o["booking_id"],
@@ -24,5 +39,6 @@ def get_orders(current_user=Depends(get_current_user)):
             "has_report": report is not None,
             "report_id": report["id"] if report else None,
             "is_published": bool(report.get("is_published")) if report else False,
+            "tests_complete": tests_complete,
         })
     return out
