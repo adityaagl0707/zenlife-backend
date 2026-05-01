@@ -50,6 +50,16 @@ app.include_router(admin.router, prefix="/api/v1")
 
 @app.on_event("startup")
 def on_startup():
+    # Add new columns to existing tables if they don't exist (safe migration)
+    try:
+        with engine.connect() as conn:
+            conn.execute(engine.dialect.text(
+                "ALTER TABLE reports ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE"
+            ))
+            conn.commit()
+    except Exception:
+        pass  # Column may already exist or DB may not support IF NOT EXISTS
+
     db = SessionLocal()
     try:
         seed_demo(db)

@@ -21,11 +21,27 @@ def _report_or_404(report_id: int, user: User, db: Session) -> Report:
     return report
 
 
+def _require_published(report: Report):
+    """Raise 403 if report is not published (for data endpoints)."""
+    if not getattr(report, "is_published", False):
+        raise HTTPException(status_code=403, detail="Report not yet published")
+
+
 @router.get("/{report_id}")
 def get_report(report_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     r = _report_or_404(report_id, current_user, db)
+    is_published = getattr(r, "is_published", False)
+    # Return minimal info if not published so frontend can show "In Progress"
+    if not is_published:
+        return {
+            "id": r.id,
+            "is_published": False,
+            "patient_name": r.order.patient_name,
+            "booking_id": r.order.booking_id,
+        }
     return {
         "id": r.id,
+        "is_published": True,
         "patient_name": r.order.patient_name,
         "patient_age": r.order.patient_age,
         "patient_gender": r.order.patient_gender,
@@ -47,6 +63,7 @@ def get_report(report_id: int, current_user: User = Depends(get_current_user), d
 @router.get("/{report_id}/organ-scores")
 def get_organ_scores(report_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     r = _report_or_404(report_id, current_user, db)
+    _require_published(r)
     scores = db.query(OrganScore).filter(OrganScore.report_id == r.id).order_by(OrganScore.display_order).all()
     return [
         {
@@ -73,6 +90,7 @@ def get_findings(
     db: Session = Depends(get_db),
 ):
     r = _report_or_404(report_id, current_user, db)
+    _require_published(r)
     q = db.query(Finding).filter(Finding.report_id == r.id)
     if severity:
         q = q.filter(Finding.severity == severity)
@@ -100,6 +118,7 @@ def get_findings(
 @router.get("/{report_id}/priorities")
 def get_priorities(report_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     r = _report_or_404(report_id, current_user, db)
+    _require_published(r)
     priorities = db.query(HealthPriority).filter(HealthPriority.report_id == r.id).order_by(HealthPriority.priority_order).all()
     return [
         {

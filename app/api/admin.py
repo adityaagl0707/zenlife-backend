@@ -92,22 +92,24 @@ def list_patients(db: Session = Depends(get_db)):
     result = []
     for u in users:
         orders = db.query(Order).filter(Order.user_id == u.id).all()
+        order_list = []
+        for o in orders:
+            r = db.query(Report).filter(Report.order_id == o.id).first()
+            order_list.append({
+                "id": o.id,
+                "booking_id": o.booking_id,
+                "status": o.status,
+                "has_report": r is not None,
+                "report_id": r.id if r else None,
+                "is_published": getattr(r, "is_published", False) if r else False,
+            })
         result.append({
             "id": u.id,
             "phone": u.phone,
             "name": u.name,
             "age": u.age,
             "gender": u.gender,
-            "orders": [
-                {
-                    "id": o.id,
-                    "booking_id": o.booking_id,
-                    "status": o.status,
-                    "has_report": db.query(Report).filter(Report.order_id == o.id).first() is not None,
-                    "report_id": (db.query(Report).filter(Report.order_id == o.id).first() or type("x", (), {"id": None})()).id,
-                }
-                for o in orders
-            ],
+            "orders": order_list,
         })
     return result
 
@@ -185,6 +187,52 @@ def update_report(report_id: int, body: UpdateReport, db: Session = Depends(get_
         report.summary = body.summary
     if body.next_visit is not None and body.next_visit:
         report.next_visit = datetime.fromisoformat(body.next_visit)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/reports/{report_id}/publish")
+def publish_report(report_id: int, db: Session = Depends(get_db)):
+    """Make a report visible to the patient on the front end."""
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report.is_published = True
+    db.commit()
+    return {"ok": True, "is_published": True}
+
+
+@router.post("/reports/{report_id}/unpublish")
+def unpublish_report(report_id: int, db: Session = Depends(get_db)):
+    """Hide a report from the patient front end."""
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report.is_published = False
+    db.commit()
+    return {"ok": True, "is_published": False}
+
+
+@router.delete("/reports/{report_id}/clear-data")
+def clear_report_data(report_id: int, db: Session = Depends(get_db)):
+    """Delete all findings, organ scores, sections, body age, and priorities for a report."""
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    db.query(Finding).filter(Finding.report_id == report_id).delete()
+    db.query(OrganScore).filter(OrganScore.report_id == report_id).delete()
+    db.query(ReportSection).filter(ReportSection.report_id == report_id).delete()
+    db.query(HealthPriority).filter(HealthPriority.report_id == report_id).delete()
+    try:
+        from ..models.report import BodyAge
+        db.query(BodyAge).filter(BodyAge.report_id == report_id).delete()
+    except Exception:
+        pass
+    # Reset report summary fields
+    report.coverage_index = 0.0
+    report.overall_severity = "normal"
+    report.summary = ""
+    report.is_published = False
     db.commit()
     return {"ok": True}
 
@@ -413,6 +461,7 @@ def get_report_detail(report_id: int, db: Session = Depends(get_db)):
         "coverage_index": report.coverage_index,
         "overall_severity": report.overall_severity,
         "summary": report.summary,
+        "is_published": getattr(report, "is_published", False),
         "organs": [{"id": o.id, "organ_name": o.organ_name, "severity": o.severity, "icon": o.icon, "risk_label": o.risk_label, "critical_count": o.critical_count, "major_count": o.major_count, "minor_count": o.minor_count, "normal_count": o.normal_count} for o in organs],
         "findings": [{"id": f.id, "name": f.name, "severity": f.severity, "test_type": f.test_type, "value": f.value, "unit": f.unit, "normal_range": f.normal_range} for f in findings],
         "priorities": [{"id": p.id, "title": p.title, "priority_order": p.priority_order} for p in priorities],

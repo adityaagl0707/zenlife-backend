@@ -9,11 +9,12 @@ class Report(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), unique=True)
-    coverage_index = Column(Float, default=90.0)
+    coverage_index = Column(Float, default=0.0)
     overall_severity = Column(String, default="normal")  # normal, minor, major, critical
     report_date = Column(DateTime, default=datetime.utcnow)
     next_visit = Column(DateTime, nullable=True)
     summary = Column(Text, nullable=True)
+    is_published = Column(Boolean, default=False)
 
     order = relationship("Order", back_populates="report")
     organ_scores = relationship("OrganScore", back_populates="report")
