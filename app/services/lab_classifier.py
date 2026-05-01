@@ -308,8 +308,13 @@ def parse_excel_lab_results(file_bytes: bytes) -> list[dict]:
     return results
 
 
-def generate_template_excel() -> bytes:
-    """Generate a downloadable Excel template with all markers pre-filled."""
+def generate_template_excel(patient=None) -> bytes:
+    """Generate a downloadable Excel template with all markers pre-filled.
+
+    If `patient` is provided, a patient-info banner is added at the top
+    (name, Zen ID, Booking ID, scan date, age, gender) so the filled
+    template is unambiguously tied to one patient.
+    """
     import io
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -328,14 +333,84 @@ def generate_template_excel() -> bytes:
     col_widths = [35, 35, 15, 20, 20, 40]
 
     for col, (h, w) in enumerate(zip(headers, col_widths), 1):
-        cell = ws.cell(row=1, column=col, value=h)
+        ws.column_dimensions[chr(64 + col)].width = w
+
+    # ── Patient banner ───────────────────────────────────────────────────────
+    banner_offset = 0
+    if patient:
+        banner_fill = PatternFill(start_color="F0FFF4", end_color="F0FFF4", fill_type="solid")
+        title_font = Font(bold=True, size=14, color="0E5C45")
+        label_font = Font(bold=True, size=10, color="555555")
+        value_font = Font(size=10, color="111111")
+
+        # Row 1: title (merged)
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+        c = ws.cell(row=1, column=1, value=" ZenLife — Lab Results Template")
+        c.font = title_font
+        c.fill = banner_fill
+        c.alignment = Alignment(vertical='center')
+        ws.row_dimensions[1].height = 26
+
+        # Row 2: Patient name + Zen ID + Booking
+        # We place them as label/value pairs across columns
+        info_pairs = [
+            ("Patient Name", patient.get("patient_name") or "—"),
+            ("Zen ID", patient.get("zen_id") or "—"),
+            ("Booking ID", patient.get("booking_id") or "—"),
+        ]
+        for i, (lab, val) in enumerate(info_pairs):
+            lc = ws.cell(row=2, column=1 + i * 2, value=lab)
+            vc = ws.cell(row=2, column=2 + i * 2, value=val)
+            lc.font = label_font
+            vc.font = value_font
+            lc.fill = banner_fill
+            vc.fill = banner_fill
+            lc.alignment = Alignment(vertical='center')
+            vc.alignment = Alignment(vertical='center')
+        ws.row_dimensions[2].height = 20
+
+        # Row 3: Age/Gender + Scan date
+        scan_date = patient.get("scan_date") or "—"
+        age_gender = ""
+        age = patient.get("age")
+        gender = patient.get("gender")
+        if age and gender:
+            age_gender = f"{age} yrs · {gender}"
+        elif age:
+            age_gender = f"{age} yrs"
+        elif gender:
+            age_gender = f"{gender}"
+        else:
+            age_gender = "—"
+        info_pairs2 = [
+            ("Age / Gender", age_gender),
+            ("Scan Date", scan_date),
+            ("", ""),
+        ]
+        for i, (lab, val) in enumerate(info_pairs2):
+            lc = ws.cell(row=3, column=1 + i * 2, value=lab)
+            vc = ws.cell(row=3, column=2 + i * 2, value=val)
+            lc.font = label_font
+            vc.font = value_font
+            lc.fill = banner_fill
+            vc.fill = banner_fill
+            lc.alignment = Alignment(vertical='center')
+            vc.alignment = Alignment(vertical='center')
+        ws.row_dimensions[3].height = 20
+
+        # Spacer row
+        ws.row_dimensions[4].height = 8
+        banner_offset = 4  # header row will start at row 5
+
+    header_row = banner_offset + 1
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=col, value=h)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = border
-        ws.column_dimensions[chr(64 + col)].width = w
 
-    ws.row_dimensions[1].height = 22
+    ws.row_dimensions[header_row].height = 22
 
     # Group fills
     group_fills = {
@@ -351,7 +426,7 @@ def generate_template_excel() -> bytes:
 
     # Group markers by primary organ
     current_group = None
-    row = 2
+    row = header_row + 1
     for marker in MARKERS:
         primary_organ = marker['organs'][0] if marker['organs'] else 'Other'
 

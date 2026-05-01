@@ -468,12 +468,30 @@ def add_note(report_id: int, body: CreateNote):
 
 
 @router.get("/lab-template")
-def download_lab_template():
-    content = generate_template_excel()
+def download_lab_template(report_id: Optional[int] = None):
+    patient_ctx = None
+    if report_id:
+        report = mongo.Report.find_one({"id": report_id})
+        if report:
+            order = mongo.Order.find_one({"id": report.get("order_id")}) or {}
+            user = mongo.User.find_one({"id": order.get("user_id")}) if order.get("user_id") else None
+            scan_dt = order.get("scan_date")
+            patient_ctx = {
+                "patient_name": order.get("patient_name") or (user.get("name") if user else None),
+                "zen_id": (user.get("zen_id") if user else None),
+                "booking_id": order.get("booking_id"),
+                "scan_date": scan_dt.strftime("%d %b %Y") if scan_dt else None,
+                "age": order.get("patient_age") or (user.get("age") if user else None),
+                "gender": order.get("patient_gender") or (user.get("gender") if user else None),
+            }
+    content = generate_template_excel(patient=patient_ctx)
+    safe = (patient_ctx or {}).get("patient_name") or "Patient"
+    safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in safe).strip().replace(" ", "_") or "Patient"
+    filename = f"ZenLife_Lab_Template_{safe}.xlsx" if patient_ctx else "ZenLife_Lab_Template.xlsx"
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=ZenLife_Lab_Template.xlsx"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
