@@ -390,22 +390,98 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
             {"type": "text", "text": prompt},
         ]
 
+    # Token budget scales with parameter count: ~120 tokens / param for the
+    # JSON object (value + severity + clinical_findings + recommendations).
+    # Pad generously so MRI/USG (100+ params) don't get truncated mid-JSON.
+    max_tokens = max(4096, len(params) * 140 + 1024)
+    max_tokens = min(max_tokens, 32000)  # safety cap
+
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4096,
+        max_tokens=max_tokens,
         messages=[{"role": "user", "content": content}],
     )
 
     raw = response.content[0].text.strip()
+    stop_reason = getattr(response, "stop_reason", None)
+
     # Strip markdown code fences if present
     if raw.startswith("```"):
-        raw = raw.split("```")[1]
+        raw = raw.split("```", 2)[1]
         if raw.startswith("json"):
             raw = raw[4:]
+        raw = raw.rstrip("`").strip()
+
+    # Attempt 1 — direct parse
     try:
         return json.loads(raw)
     except Exception:
-        return {"_parse_error": raw[:500]}
+        pass
+
+    # Attempt 2 — repair truncated JSON. The model's last incomplete object
+    # is often the cause; trim to the last complete top-level entry and close
+    # the outer brace.
+    repaired = _repair_truncated_json(raw)
+    if repaired is not None:
+        try:
+            data = json.loads(repaired)
+            if stop_reason == "max_tokens":
+                data["_warning"] = (
+                    f"AI output reached the token limit; some parameters "
+                    f"may be missing. Try splitting the report or entering "
+                    f"the remaining values manually."
+                )
+            return data
+        except Exception:
+            pass
+
+    return {
+        "_parse_error": (
+            f"AI returned malformed JSON (stop_reason={stop_reason}). "
+            f"Try a smaller PDF or enter values manually. "
+            f"First 300 chars: {raw[:300]}"
+        )
+    }
+
+
+def _repair_truncated_json(text: str):
+    """
+    Best-effort repair of JSON that was cut off mid-output. Strategy:
+      1. Find the last position where a top-level value finished (closing '}'
+         followed by ',' or end of input at the right nesting level).
+      2. Trim everything after that and append a closing '}' for the outer
+         object.
+    Returns the repaired JSON string, or None if not recoverable.
+    """
+    if not text or not text.lstrip().startswith("{"):
+        return None
+    # Walk the string tracking brace depth; remember the position right after
+    # the last time depth dropped from 2 → 1 (i.e. one inner object closed).
+    depth = 0
+    in_str = False
+    escape = False
+    last_safe = -1
+    for i, ch in enumerate(text):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 1:
+                last_safe = i  # just closed an inner entry
+    if last_safe < 0:
+        return None
+    return text[: last_safe + 1] + "\n}"
 
 
 def generate_priorities(report, findings: list, organs: list) -> list:
