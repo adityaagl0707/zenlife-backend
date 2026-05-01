@@ -231,7 +231,12 @@ def _trigger_body_age(report_id: int, db: Session) -> None:
 def add_finding(report_id: int, body: CreateFinding, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     if not db.query(Report).filter(Report.id == report_id).first():
         raise HTTPException(status_code=404, detail="Report not found")
-    finding = Finding(report_id=report_id, **body.model_dump())
+    data = body.model_dump()
+    # Missing / not-found values are treated as normal
+    val = str(data.get("value") or "")
+    if not val or val.strip().lower() in ("not found", "n/a", "na", "none", "-", ""):
+        data["severity"] = "normal"
+    finding = Finding(report_id=report_id, **data)
     db.add(finding)
     db.commit()
     db.refresh(finding)
@@ -458,21 +463,29 @@ def import_section_as_findings(report_id: int, section_type: str, background_tas
         else:
             value = str(data)
 
-        if not value or value == "Not Found":
-            continue
-
         p = param_defs.get(param_name, {})
-        severity = data.get("severity", "normal") if isinstance(data, dict) else "normal"
-        clinical = data.get("clinical_findings", "") if isinstance(data, dict) else ""
-        recs = data.get("recommendations", "") if isinstance(data, dict) else ""
+
+        # Missing value → treat as normal (not concerning, just not measured)
+        is_missing = not value or str(value).strip().lower() in ("not found", "n/a", "na", "none", "-", "")
+        if is_missing:
+            severity = "normal"
+            clinical = ""
+            recs = ""
+            value = "Not Found"
+        else:
+            severity = data.get("severity", "normal") if isinstance(data, dict) else "normal"
+            clinical = data.get("clinical_findings", "") if isinstance(data, dict) else ""
+            recs = data.get("recommendations", "") if isinstance(data, dict) else ""
 
         # Skip if finding already exists for this report+name
         exists = db.query(Finding).filter(Finding.report_id == report_id, Finding.name == param_name).first()
         if exists:
-            exists.value = str(value)
-            exists.severity = severity
-            exists.clinical_findings = clinical
-            exists.recommendations = recs
+            # Only update if we have a real value, or if it was previously also missing
+            if not is_missing or exists.value in ("Not Found", None, ""):
+                exists.value = str(value)
+                exists.severity = severity
+                exists.clinical_findings = clinical
+                exists.recommendations = recs
         else:
             db.add(Finding(
                 report_id=report_id,
