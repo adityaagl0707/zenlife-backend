@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..core import mongo
 from ..api.deps import get_current_user
-from ..services.ai_service import chat_with_zeno
+from ..services.ai_service import chat_with_zeno, generate_chat_starters
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -44,3 +44,16 @@ def send_message(report_id: int, req: ChatRequest, current_user=Depends(get_curr
         raise HTTPException(status_code=404, detail="Report not found")
     reply = chat_with_zeno(report, req.message)
     return {"role": "assistant", "content": reply}
+
+
+@router.get("/{report_id}/starters")
+def get_starter_questions(report_id: int, current_user=Depends(get_current_user)):
+    """Return 4 personalised conversation-starter questions for this report."""
+    report = _user_owns_report(report_id, current_user["id"])
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    findings = mongo.Finding.find({"report_id": report_id})
+    organs = mongo.OrganScore.find({"report_id": report_id})
+    body_age = mongo.BodyAgeDoc.find_one({"report_id": report_id})
+    starters = generate_chat_starters(report, findings, organs, body_age)
+    return {"starters": starters}

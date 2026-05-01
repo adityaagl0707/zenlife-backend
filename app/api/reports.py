@@ -1,6 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
+from jose import jwt, JWTError
 from ..core import mongo
+from ..core.config import get_settings
 from ..api.deps import get_current_user
+from ..services.pdf_service import (
+    generate_full_report_pdf,
+    generate_summary_pdf,
+    generate_lab_csv,
+    safe_filename,
+)
+
+_settings = get_settings()
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -201,3 +213,115 @@ def get_notes(report_id: int, current_user=Depends(get_current_user)):
         }
         for n in notes
     ]
+
+
+# ── Downloads ──────────────────────────────────────────────────────────────
+
+def _name_for_report(report) -> str:
+    order = report.get("order") or mongo.Order.find_one({"id": report.get("order_id")}) or {}
+    return order.get("patient_name") or "Patient"
+
+
+@router.get("/{report_id}/download/full.pdf")
+def download_full_pdf(report_id: int, current_user=Depends(get_current_user)):
+    r = _report_or_404(report_id, current_user)
+    pdf = generate_full_report_pdf(report_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename(_name_for_report(r), "pdf")}"'},
+    )
+
+
+@router.get("/{report_id}/download/summary.pdf")
+def download_summary_pdf(report_id: int, current_user=Depends(get_current_user)):
+    r = _report_or_404(report_id, current_user)
+    pdf = generate_summary_pdf(report_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="ZenReport_Summary_{_name_for_report(r).replace(" ", "_")}.pdf"'},
+    )
+
+
+@router.get("/{report_id}/download/lab-data.csv")
+def download_lab_csv(report_id: int, current_user=Depends(get_current_user)):
+    r = _report_or_404(report_id, current_user)
+    csv_bytes = generate_lab_csv(report_id)
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="ZenReport_LabData_{_name_for_report(r).replace(" ", "_")}.csv"'},
+    )
+
+
+# ── Secure share link (doctor view) ────────────────────────────────────────
+
+@router.post("/{report_id}/share-link")
+def create_share_link(report_id: int, request: Request, current_user=Depends(get_current_user)):
+    """Create a JWT-signed shareable link valid for 7 days."""
+    r = _report_or_404(report_id, current_user)
+    payload = {
+        "report_id": report_id,
+        "scope": "share",
+        "exp": datetime.utcnow() + timedelta(days=7),
+    }
+    token = jwt.encode(payload, _settings.secret_key, algorithm=_settings.algorithm)
+    base = str(request.base_url).rstrip("/")
+    # Strip /api/v1 if accessed via API root, replace with site root
+    site = base.replace("http://", "https://").split("/api")[0]
+    return {
+        "token": token,
+        "url": f"{site}/share/{token}",
+        "expires_at": payload["exp"].isoformat() + "Z",
+    }
+
+
+def _decode_share_token(token: str):
+    try:
+        payload = jwt.decode(token, _settings.secret_key, algorithms=[_settings.algorithm])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired share link")
+    if payload.get("scope") != "share":
+        raise HTTPException(status_code=401, detail="Invalid share link")
+    return payload
+
+
+@router.get("/share/{token}")
+def get_shared_report(token: str):
+    """Public endpoint — returns the same payload as /reports/{id} but
+    authenticates via a signed share token instead of a user JWT."""
+    payload = _decode_share_token(token)
+    rid = payload["report_id"]
+    r = mongo.Report.find_one({"id": rid})
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    order = mongo.Order.find_one({"id": r["order_id"]}) or {}
+    if not r.get("is_published"):
+        return {"id": rid, "is_published": False, "patient_name": order.get("patient_name"), "booking_id": order.get("booking_id")}
+    finding_counts = {
+        sev: mongo.Finding.count({"report_id": rid, "severity": sev})
+        for sev in ("critical", "major", "minor", "normal")
+    }
+    return {
+        "id": rid,
+        "is_published": True,
+        "patient_name": order.get("patient_name"),
+        "patient_age": order.get("patient_age"),
+        "patient_gender": order.get("patient_gender"),
+        "booking_id": order.get("booking_id"),
+        "coverage_index": r.get("coverage_index"),
+        "overall_severity": r.get("overall_severity"),
+        "report_date": _date_str(r.get("report_date")),
+        "next_visit": _date_str(r.get("next_visit")),
+        "summary": r.get("summary"),
+        "finding_counts": finding_counts,
+    }
+
+
+@router.get("/share/{token}/download/full.pdf")
+def shared_full_pdf(token: str):
+    payload = _decode_share_token(token)
+    pdf = generate_full_report_pdf(payload["report_id"])
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="ZenReport.pdf"'})
