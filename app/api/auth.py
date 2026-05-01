@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -12,6 +12,32 @@ class SendOTPRequest(BaseModel):
 class VerifyOTPRequest(BaseModel):
     phone: str
     otp: str
+
+
+class SignupRequest(BaseModel):
+    phone: str
+    first_name: str = Field(min_length=1)
+    last_name: str = Field(min_length=1)
+    age: int = Field(ge=0, le=120)
+    gender: str
+    password: str = Field(min_length=6)
+    confirm_password: str
+
+
+class PasswordLoginRequest(BaseModel):
+    phone: str
+    password: str
+
+
+def _user_payload(user) -> dict:
+    return {
+        "id": user["id"],
+        "phone": user["phone"],
+        "name": user.get("name"),
+        "zen_id": user.get("zen_id"),
+        "age": user.get("age"),
+        "gender": user.get("gender"),
+    }
 
 
 @router.post("/send-otp")
@@ -30,6 +56,42 @@ def verify_otp(req: VerifyOTPRequest):
         raise HTTPException(status_code=401, detail="Invalid or expired OTP")
     user = auth_service.get_or_create_user(req.phone)
     token = auth_service.create_token_for_user(user)
-    return {"access_token": token, "token_type": "bearer", "user": {
-        "id": user["id"], "phone": user["phone"], "name": user.get("name"),
-    }}
+    return {"access_token": token, "token_type": "bearer", "user": _user_payload(user)}
+
+
+@router.post("/signup")
+def signup(req: SignupRequest):
+    if len(req.phone) != 10 or not req.phone.isdigit():
+        raise HTTPException(status_code=400, detail="Enter a valid 10-digit mobile number")
+    if req.password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    g = (req.gender or "").strip().lower()
+    gender_norm = {
+        "m": "Male", "male": "Male",
+        "f": "Female", "female": "Female",
+        "o": "Other", "other": "Other",
+    }.get(g)
+    if not gender_norm:
+        raise HTTPException(status_code=400, detail="Select a valid sex")
+    try:
+        user = auth_service.signup_user(
+            phone=req.phone,
+            first_name=req.first_name,
+            last_name=req.last_name,
+            age=req.age,
+            gender=gender_norm,
+            password=req.password,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    token = auth_service.create_token_for_user(user)
+    return {"access_token": token, "token_type": "bearer", "user": _user_payload(user)}
+
+
+@router.post("/login")
+def password_login(req: PasswordLoginRequest):
+    user = auth_service.login_with_password(req.phone, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid phone number or password")
+    token = auth_service.create_token_for_user(user)
+    return {"access_token": token, "token_type": "bearer", "user": _user_payload(user)}

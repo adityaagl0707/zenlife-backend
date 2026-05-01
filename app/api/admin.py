@@ -82,6 +82,23 @@ class CreateNote(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+def _compute_patient_status(orders_meta: list[dict]) -> str:
+    """Compute a single status for the patient from their orders.
+    - registered_unpaid: no orders yet (just signed up)
+    - paid_test_pending: order exists but tests not yet complete
+    - test_done_report_awaited: tests complete but report not published
+    - report_published: published report exists
+    Picks the "most progressed" status across the patient's orders.
+    """
+    if not orders_meta:
+        return "registered_unpaid"
+    if any(o.get("is_published") for o in orders_meta):
+        return "report_published"
+    if any(o.get("tests_complete") and not o.get("is_published") for o in orders_meta):
+        return "test_done_report_awaited"
+    return "paid_test_pending"
+
+
 @router.get("/patients")
 def list_patients():
     users = mongo.User.find()
@@ -91,6 +108,11 @@ def list_patients():
         order_list = []
         for o in orders:
             r = mongo.Report.find_one({"order_id": o["id"]})
+            tests_complete = False
+            if r:
+                statuses = r.get("test_statuses") or {}
+                required = _required_tests_for(o.get("patient_gender") or u.get("gender"))
+                tests_complete = bool(required) and all(statuses.get(t) == "complete" for t in required)
             order_list.append({
                 "id": o["id"],
                 "booking_id": o.get("booking_id"),
@@ -98,14 +120,17 @@ def list_patients():
                 "has_report": r is not None,
                 "report_id": r["id"] if r else None,
                 "is_published": bool(r.get("is_published")) if r else False,
+                "tests_complete": tests_complete,
             })
         result.append({
             "id": u["id"],
             "phone": u.get("phone"),
             "name": u.get("name"),
+            "zen_id": u.get("zen_id"),
             "age": u.get("age"),
             "gender": u.get("gender"),
             "orders": order_list,
+            "status": _compute_patient_status(order_list),
         })
     return result
 
