@@ -24,6 +24,7 @@ def get_orders(current_user: User = Depends(get_current_user), db: Session = Dep
             "amount": o.amount,
             "has_report": o.report is not None,
             "report_id": o.report.id if o.report else None,
+            "is_published": getattr(o.report, "is_published", False) if o.report else False,
         }
         for o in orders
     ]
