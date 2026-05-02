@@ -858,6 +858,29 @@ def sync_all_organs():
     }
 
 
+@router.get("/reports/{report_id}/body-age")
+def get_saved_body_age(report_id: int):
+    """Return the persisted body age document (or null) so the admin UI
+    can rehydrate after remount instead of showing 'No body age calculated'."""
+    if not mongo.Report.find_one({"id": report_id}):
+        raise HTTPException(status_code=404, detail="Report not found")
+    ba = mongo.BodyAgeDoc.find_one({"report_id": report_id})
+    if not ba:
+        return None
+    return {
+        "ok": True,
+        "chronological_age": ba.get("chronological_age"),
+        "pheno_age": ba.get("pheno_age"),
+        "zen_age": ba.get("zen_age"),
+        "age_difference": ba.get("age_difference"),
+        "confidence": ba.get("confidence", "medium"),
+        "interpretation": ba.get("interpretation", ""),
+        "markers_used": ba.get("markers_used") or [],
+        "markers_missing": ba.get("markers_missing") or [],
+        "sub_ages": ba.get("sub_ages") or {},
+    }
+
+
 @router.post("/reports/{report_id}/calculate-body-age")
 def calculate_body_age_endpoint(report_id: int):
     from ..services.body_age_service import calculate_pheno_age, calculate_zen_age
