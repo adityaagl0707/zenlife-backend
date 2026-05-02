@@ -23,6 +23,7 @@ def _patient_gender_for_report(report_id):
         g = (u or {}).get("gender")
     return g
 from ..services.ai_service import extract_report_parameters, generate_priorities
+from ..services.dexa_calc import autocompute_dexa
 from ..services.organ_param_map import ORGAN_DEFINITIONS, RISK_LABELS
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -701,6 +702,12 @@ class SaveSectionBody(BaseModel):
 def save_section(report_id: int, section_type: str, body: SaveSectionBody):
     if section_type not in SECTION_PARAMETERS:
         raise HTTPException(status_code=400, detail=f"Unknown section type: {section_type}")
+    # Auto-compute DEXA derived metrics (ALM, ASMI, FMI) when their inputs
+    # are present but the report didn't print them.
+    if section_type == "dexa" and body.parameters is not None:
+        gender = _patient_gender_for_report(report_id)
+        body.parameters, _ = autocompute_dexa(body.parameters, gender)
+
     section = mongo.ReportSection.find_one({"report_id": report_id, "section_type": section_type})
     if section:
         update = {"updated_at": mongo.now()}
@@ -734,6 +741,10 @@ async def extract_section(report_id: int, section_type: str, file: UploadFile = 
 
     if "_parse_error" in extracted or "error" in extracted:
         raise HTTPException(status_code=422, detail=extracted.get("_parse_error") or extracted.get("error"))
+
+    # Auto-compute DEXA derived metrics from the extracted inputs.
+    if section_type == "dexa":
+        extracted, _ = autocompute_dexa(extracted, gender)
 
     section = mongo.ReportSection.find_one({"report_id": report_id, "section_type": section_type})
     if section:
