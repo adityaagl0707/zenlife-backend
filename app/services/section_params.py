@@ -240,9 +240,6 @@ SECTION_PARAMETERS = {
         {"name": "Mediastinum & Lymph Nodes", "unit": "", "normal": "Normal"},
         {"name": "Mediastinal Lymph Nodes", "unit": "", "normal": "Normal"},
         {"name": "Pleural cavities", "unit": "", "normal": "Normal"},
-        {"name": "Subglottis", "unit": "", "normal": "Normal"},
-        {"name": "Glottis", "unit": "", "normal": "Normal"},
-        {"name": "Supra-glottis", "unit": "", "normal": "Normal"},
     ],
 
     "usg": [
@@ -341,6 +338,10 @@ SECTION_PARAMETERS = {
     ],
 
     "mri": [
+        # Larynx / upper airway (MRI neck)
+        {"name": "Subglottis", "unit": "", "normal": "Normal"},
+        {"name": "Glottis", "unit": "", "normal": "Normal"},
+        {"name": "Supra-glottis", "unit": "", "normal": "Normal"},
         # Brain
         {"name": "Brain: Ischemic causes", "unit": "", "normal": "Normal"},
         {"name": "Cerebral white matter", "unit": "", "normal": "Normal"},
