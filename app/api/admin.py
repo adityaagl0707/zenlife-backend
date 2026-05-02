@@ -8,7 +8,7 @@ from datetime import datetime
 from ..core import mongo
 from ..services import auth_service
 from ..services.lab_classifier import parse_excel_lab_results, generate_template_excel, MARKERS, classify_severity
-from ..services.section_params import SECTION_PARAMETERS, SECTION_META, filter_params_by_gender
+from ..services.section_params import SECTION_PARAMETERS, SECTION_META, filter_params_by_gender, PARAM_PAIRS
 
 
 def _patient_gender_for_report(report_id):
@@ -581,6 +581,7 @@ def get_section_params(report_id: Optional[int] = None, gender: Optional[str] = 
             k: filter_params_by_gender(v, gender)
             for k, v in SECTION_PARAMETERS.items()
         },
+        "pairs": PARAM_PAIRS,
     }
 
 
@@ -609,6 +610,7 @@ def get_section(report_id: int, section_type: str):
         "parameters": saved,
         "param_definitions": param_defs,
         "meta": SECTION_META.get(section_type, {}),
+        "pairs": PARAM_PAIRS,
     }
 
 

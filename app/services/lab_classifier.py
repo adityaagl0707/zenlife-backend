@@ -438,8 +438,8 @@ def generate_template_excel(patient=None, section=None) -> bytes:
     thin = Side(style='thin', color='CCCCCC')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    headers = ["Test Name", "What Marker Is This", "Your Value", "Normal Range", "Unit", "Notes"]
-    col_widths = [35, 35, 15, 20, 20, 40]
+    headers = ["Test Name", "What Marker Is This", "Your Value", "Normal Range", "Unit", "Paired With", "Notes"]
+    col_widths = [35, 35, 15, 20, 20, 24, 40]
 
     for col, (h, w) in enumerate(zip(headers, col_widths), 1):
         ws.column_dimensions[chr(64 + col)].width = w
@@ -453,7 +453,7 @@ def generate_template_excel(patient=None, section=None) -> bytes:
         value_font = Font(size=10, color="111111")
 
         # Row 1: title (merged)
-        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=7)
         section_title = {
             "blood": " ZenLife — Blood Report Template",
             "urine": " ZenLife — Urine Analysis Template",
@@ -542,10 +542,34 @@ def generate_template_excel(patient=None, section=None) -> bytes:
     # admin panel exactly. Otherwise fall back to the broader MARKERS list.
     use_section_params = (section or "").lower() in ("blood", "urine")
     if use_section_params:
-        from .section_params import SECTION_PARAMETERS, filter_params_by_gender
+        from .section_params import SECTION_PARAMETERS, filter_params_by_gender, PARAM_PAIRS
         all_defs = SECTION_PARAMETERS.get(section.lower(), [])
         # Filter by patient gender if available so females don't see PSA, etc.
         section_defs = filter_params_by_gender(all_defs, (patient or {}).get("gender"))
+        # Reorder so paired CBC twins (e.g. "Neutrophils" % and
+        # "Neutrophils - Count") appear as adjacent rows in the template,
+        # making it obvious to the admin filling the sheet that the two
+        # rows are the same biological measurement.
+        if PARAM_PAIRS:
+            secondary_to_primary = dict(PARAM_PAIRS)
+            primary_to_secondary = {v: k for k, v in PARAM_PAIRS.items()}
+            by_name = {p["name"]: p for p in section_defs}
+            ordered, seen = [], set()
+            for p in section_defs:
+                if p["name"] in seen:
+                    continue
+                ordered.append(p); seen.add(p["name"])
+                # If this is a primary, immediately append its secondary
+                if p["name"] in primary_to_secondary:
+                    sec_name = primary_to_secondary[p["name"]]
+                    if sec_name in by_name and sec_name not in seen:
+                        ordered.append(by_name[sec_name]); seen.add(sec_name)
+                # If this is a secondary, immediately append its primary
+                elif p["name"] in secondary_to_primary:
+                    pri_name = secondary_to_primary[p["name"]]
+                    if pri_name in by_name and pri_name not in seen:
+                        ordered.append(by_name[pri_name]); seen.add(pri_name)
+            section_defs = ordered
 
         # Build a description lookup so each section param gets a meaningful
         # "What Marker Is This" value. Order of precedence:
@@ -736,6 +760,15 @@ def generate_template_excel(patient=None, section=None) -> bytes:
     else:
         markers_iter = MARKERS
 
+    # Pre-compute pairing labels (only relevant for blood/urine sections that
+    # use SECTION_PARAMETERS) — empty dict for the legacy MARKERS path.
+    paired_with_map: dict[str, str] = {}
+    if use_section_params:
+        from .section_params import PARAM_PAIRS
+        for sec_name, prim_name in PARAM_PAIRS.items():
+            paired_with_map[sec_name] = f"= {prim_name} (count)"
+            paired_with_map[prim_name] = f"= {sec_name} (%)"
+
     # Group markers by primary organ
     current_group = None
     row = header_row + 1
@@ -745,17 +778,18 @@ def generate_template_excel(patient=None, section=None) -> bytes:
         # Group header row
         if primary_organ != current_group:
             current_group = primary_organ
-            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
             g_cell = ws.cell(row=row, column=1, value=f"  {primary_organ}")
             g_cell.font = Font(bold=True, size=10, color="444444")
             g_fill = group_fills.get(primary_organ, group_fills["Other"])
-            for c in range(1, 7):
+            for c in range(1, 8):
                 ws.cell(row=row, column=c).fill = g_fill
             ws.row_dimensions[row].height = 16
             row += 1
 
         fill = group_fills.get(primary_organ, group_fills["Other"])
-        values = [marker['name'], marker['description'], "", marker['normal_range'], marker['unit'], ""]
+        paired_with = paired_with_map.get(marker['name'], "")
+        values = [marker['name'], marker['description'], "", marker['normal_range'], marker['unit'], paired_with, ""]
         for col, val in enumerate(values, 1):
             cell = ws.cell(row=row, column=col, value=val)
             cell.fill = fill
@@ -763,6 +797,8 @@ def generate_template_excel(patient=None, section=None) -> bytes:
             cell.alignment = Alignment(vertical='center')
             if col == 3:  # "Your Value" column — highlight
                 cell.fill = PatternFill(start_color="FEFCE8", end_color="FEFCE8", fill_type="solid")
+            if col == 6 and paired_with:  # "Paired With" — italic gray
+                cell.font = Font(italic=True, color="888888", size=9)
 
         ws.row_dimensions[row].height = 18
         row += 1

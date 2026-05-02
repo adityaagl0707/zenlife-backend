@@ -520,3 +520,23 @@ def filter_params_by_gender(params, gender):
 def get_section_params(section_type, gender=None):
     """Return the parameter list for a section, filtered by patient gender."""
     return filter_params_by_gender(SECTION_PARAMETERS.get(section_type, []), gender)
+
+
+# ── Paired CBC differentials ────────────────────────────────────────────────
+# Same biological measurement reported twice on every CBC: once as a relative
+# percentage and once as an absolute count. Both are stored separately (so
+# findings, lab CSV, and PDF exports stay complete), but the UI groups them
+# into a single row to avoid the appearance of duplicates. The absolute count
+# is the clinically actionable value (e.g. neutropenia is defined by ANC, not
+# %), so it's the primary; the % is the secondary.
+#
+# Format: { "<%-form (secondary)>": "<count-form (primary)>", ... }
+PARAM_PAIRS = {
+    "Basophils":               "Basophils - Count",
+    "Eosinophils":             "Eosinophils - Count",
+    "Lymphocytes":             "Lymphocytes - Count",
+    "Monocytes":               "Monocytes - Count",
+    "Neutrophils":             "Neutrophils - Count",
+    "Immature Granulocytes %": "Immature Granulocytes",
+    "Nucleated RBC %":         "Nucleated RBC",
+}
