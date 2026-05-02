@@ -252,6 +252,13 @@ def get_unfilled_params(report_id: int):
     sections = {s["section_type"]: s for s in mongo.ReportSection.find({"report_id": report_id})}
     out: dict[str, list[dict]] = {}
     for sec_key, defs in SECTION_PARAMETERS.items():
+        meta = SECTION_META.get(sec_key, {})
+        # Skip whole sections that don't apply to this patient (e.g. mammography
+        # for males). Param-level gender filter still runs for mixed sections.
+        if meta.get("female_only") and gender == "M":
+            continue
+        if meta.get("male_only") and gender == "F":
+            continue
         defs = filter_params_by_gender(defs, gender)
         sec_doc = sections.get(sec_key) or {}
         params = sec_doc.get("parameters") or {}

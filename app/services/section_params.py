@@ -489,7 +489,7 @@ SECTION_META = {
     "chest_xray":     {"label": "Chest X-Ray",          "icon": "🫁", "has_key_findings": True},
     "usg":            {"label": "USG Report",           "icon": "🔊", "has_key_findings": True},
     "mri":            {"label": "MRI Report",           "icon": "🧲", "has_key_findings": True},
-    "mammography":    {"label": "Mammography",          "icon": "🎀", "has_key_findings": True},
+    "mammography":    {"label": "Mammography",          "icon": "🎀", "has_key_findings": True, "female_only": True},
 }
 
 
