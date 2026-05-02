@@ -307,7 +307,7 @@ SECTION_PARAMETERS = {
         {"name": "Thyroid Lesions", "unit": "", "normal": "None"},
         {"name": "Adrenals", "unit": "", "normal": "Normal"},
         # Reproductive
-        {"name": "Prostate Size (if male)", "unit": "cc", "normal": "<30"},
+        {"name": "Prostate Size (if male)", "unit": "cc", "normal": "<30", "gender": "M"},
         {"name": "Pelvic cavity", "unit": "", "normal": "Normal"},
         {"name": "Pelvic soft tissues", "unit": "", "normal": "Normal"},
         {"name": "Other pelvic viscera", "unit": "", "normal": "Normal"},
@@ -322,10 +322,10 @@ SECTION_PARAMETERS = {
         # Kidney (structural)
         {"name": "Renal Cortical Thickness", "unit": "mm", "normal": ">10"},
         # Female-specific imaging
-        {"name": "Breast Ultrasound", "unit": "", "normal": "Normal"},
-        {"name": "Transvaginal Ultrasound", "unit": "", "normal": "Normal"},
-        {"name": "Endometrial Thickness", "unit": "mm", "normal": "<12"},
-        {"name": "Mammography", "unit": "", "normal": "BIRADS 1"},
+        {"name": "Breast Ultrasound", "unit": "", "normal": "Normal", "gender": "F"},
+        {"name": "Transvaginal Ultrasound", "unit": "", "normal": "Normal", "gender": "F"},
+        {"name": "Endometrial Thickness", "unit": "mm", "normal": "<12", "gender": "F"},
+        {"name": "Mammography", "unit": "", "normal": "BIRADS 1", "gender": "F"},
         # Female-specific organs (USG visualisation)
         {"name": "Pelvic Ultrasound", "unit": "", "normal": "Normal", "gender": "F"},
         {"name": "Uterus", "unit": "", "normal": "Normal", "gender": "F"},
@@ -455,7 +455,7 @@ SECTION_PARAMETERS = {
         {"name": "Oropharynx", "unit": "", "normal": "Normal"},
         {"name": "Nasopharynx", "unit": "", "normal": "Normal"},
         {"name": "Liver Fat %", "unit": "%", "normal": "<5"},
-        {"name": "Prostate Volume", "unit": "cc", "normal": "<30"},
+        {"name": "Prostate Volume", "unit": "cc", "normal": "<30", "gender": "M"},
     ],
     "mammography": [
         {"name": "Right Breast: Mass", "unit": "", "normal": "None"},
