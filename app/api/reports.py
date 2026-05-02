@@ -98,6 +98,7 @@ def get_report(report_id: int, current_user=Depends(get_current_user)):
         "summary": r.get("summary"),
         "finding_counts": finding_counts,
         "ignored_params": r.get("ignored_params") or [],
+        "health_plan": r.get("health_plan") or None,
     }
 
 
