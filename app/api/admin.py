@@ -235,6 +235,77 @@ def update_report(report_id: int, body: UpdateReport):
     return {"ok": True}
 
 
+# ── Pre-generate review: unfilled / ignored params ───────────────────────────
+
+@router.get("/reports/{report_id}/unfilled-params")
+def get_unfilled_params(report_id: int):
+    """List every canonical parameter that has no value AND is not in the
+    report's ignored list, grouped by section. Used by the admin's
+    'Generate Report' pre-flight drawer.
+    """
+    report = mongo.Report.find_one({"id": report_id})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    gender = _patient_gender_for_report(report_id)
+    ignored = set(report.get("ignored_params") or [])
+
+    sections = {s["section_type"]: s for s in mongo.ReportSection.find({"report_id": report_id})}
+    out: dict[str, list[dict]] = {}
+    for sec_key, defs in SECTION_PARAMETERS.items():
+        defs = filter_params_by_gender(defs, gender)
+        sec_doc = sections.get(sec_key) or {}
+        params = sec_doc.get("parameters") or {}
+        # Skip the secondary of a CBC twin pair — counted via the primary
+        secondaries = set(PARAM_PAIRS.keys())
+        unfilled = []
+        for d in defs:
+            if d["name"] in secondaries:
+                continue
+            if d["name"] in ignored:
+                continue
+            v = params.get(d["name"])
+            val = v.get("value") if isinstance(v, dict) else v
+            # Also check the paired secondary's value (count + % share status)
+            sec_name = next((k for k, p in PARAM_PAIRS.items() if p == d["name"]), None)
+            sec_val = None
+            if sec_name:
+                sv = params.get(sec_name)
+                sec_val = sv.get("value") if isinstance(sv, dict) else sv
+            if val in (None, "", "—", "-", "Not Found") and sec_val in (None, "", "—", "-", "Not Found"):
+                unfilled.append({
+                    "name": d["name"],
+                    "unit": d.get("unit", ""),
+                    "normal": d.get("normal", ""),
+                    "paired_secondary": sec_name,
+                })
+        if unfilled:
+            out[sec_key] = unfilled
+    return {
+        "ignored_params": list(ignored),
+        "unfilled_by_section": out,
+        "section_meta": SECTION_META,
+    }
+
+
+class IgnoredParamsBody(BaseModel):
+    add: Optional[list[str]] = None
+    remove: Optional[list[str]] = None
+
+
+@router.patch("/reports/{report_id}/ignored-params")
+def update_ignored_params(report_id: int, body: IgnoredParamsBody):
+    report = mongo.Report.find_one({"id": report_id})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    current = set(report.get("ignored_params") or [])
+    if body.add:
+        current.update(body.add)
+    if body.remove:
+        current.difference_update(body.remove)
+    mongo.Report.update_one({"id": report_id}, {"$set": {"ignored_params": sorted(current)}})
+    return {"ok": True, "ignored_params": sorted(current)}
+
+
 @router.post("/reports/{report_id}/publish")
 def publish_report(report_id: int):
     if not mongo.Report.find_one({"id": report_id}):
