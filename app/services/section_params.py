@@ -434,18 +434,13 @@ SECTION_PARAMETERS = {
         {"name": "Endocrine and Metabolic Health: Infective-active", "unit": "", "normal": "Normal"},
         {"name": "Endocrine and Metabolic Health: Ischemic Causes", "unit": "", "normal": "Normal"},
         {"name": "Endocrine and Metabolic Health: Congenital Causes", "unit": "", "normal": "Normal"},
-        # Reproductive (MRI)
+        # Pelvic structures (MRI) — categorised under Kidney & Urinary Health
+        # since the Reproductive Health organ was removed; sex-specific
+        # reproductive parameters live under Women's / Men's Health.
         {"name": "Pelvic cavity", "unit": "", "normal": "Normal"},
         {"name": "Pelvic soft tissues", "unit": "", "normal": "Normal"},
         {"name": "Other pelvic viscera", "unit": "", "normal": "Normal"},
         {"name": "Pelvic lymphnodes", "unit": "", "normal": "Normal"},
-        {"name": "Reproductive Health: Degenerative", "unit": "", "normal": "Normal"},
-        {"name": "Reproductive Health: Post-infective", "unit": "", "normal": "Normal"},
-        {"name": "Reproductive Health: Inflammation", "unit": "", "normal": "Normal"},
-        {"name": "Reproductive Health: Tumours", "unit": "", "normal": "None"},
-        {"name": "Reproductive Health: Infective-active", "unit": "", "normal": "Normal"},
-        {"name": "Reproductive Health: Ischemic Causes", "unit": "", "normal": "Normal"},
-        {"name": "Reproductive Health: Congenital Causes", "unit": "", "normal": "Normal"},
         # General abdominal (MRI)
         {"name": "Peritoneum", "unit": "", "normal": "Normal"},
         {"name": "Retroperitoneum", "unit": "", "normal": "Normal"},

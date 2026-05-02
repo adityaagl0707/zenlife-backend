@@ -11,17 +11,20 @@ ORGAN_DEFINITIONS = [
         "display_order": 1,
         "gender": 'U',
         "params": [
-            "agaston score", "ldl cholesterol", "homocysteine levels", "total cholesterol",
+            # Coronary calcium / cardiac chamber / ECG
+            "agaston score", "agatston score", "st segment", "pericardium",
+            "heart rate", "qt interval (qtc)", "rhythm", "qrs duration",
+            "pr interval", "p-wave duration", "cardia",
+            # Cardiac risk markers (lipids + cardiac proteins)
+            "ldl cholesterol", "homocysteine levels", "total cholesterol",
             "hdl cholesterol", "triglycerides", "non-hdl cholesterol", "vldl cholesterol",
             "triglycerides / hdl", "total cholesterol / hdl", "hdl/ldl ratio", "lipoprotein (a)",
-            "apolipoprotein b", "ldl/hdl ratio", "st segment", "iliac vessels",
-            "aorta & branches", "superior venacava", "pericardium", "heart health: degenerative",
-            "heart health: post-infective", "heart health: inflammation", "heart health: traumatic issues", "ivc and tributaries",
-            "other major vessels", "aorta and branches", "cardia", "neck vessels",
-            "heart health: tumours", "heart health: infective-active", "heart health: ischemic causes", "heart health: congenital causes",
-            "heart rate", "qt interval (qtc)", "rhythm", "qrs duration",
-            "pr interval", "agatston score", "apoa1", "nt-probnp",
-            "carotid cimt", "carotid plaque score", "p-wave duration",
+            "apolipoprotein b", "ldl/hdl ratio", "apoa1", "nt-probnp",
+            # Rollup category headers
+            "heart health: degenerative", "heart health: post-infective",
+            "heart health: inflammation", "heart health: traumatic issues",
+            "heart health: tumours", "heart health: infective-active",
+            "heart health: ischemic causes", "heart health: congenital causes",
         ],
     },
     {
@@ -146,22 +149,9 @@ ORGAN_DEFINITIONS = [
         ],
     },
     {
-        "organ_name": 'Reproductive Health',
-        "icon": '🌿',
-        "display_order": 8,
-        "gender": 'U',
-        "params": [
-            "cortisol", "dhea", "psa", "testosterone",
-            "pelvic lymphnodes", "reproductive health: degenerative", "reproductive health: post-infective", "reproductive health: inflammation",
-            "reproductive health: traumatic issues", "pelvic cavity", "pelvic soft tissues", "other pelvic viscera",
-            "reproductive health: tumours", "reproductive health: infective-active", "reproductive health: ischemic causes", "reproductive health: congenital causes",
-            "free testosterone", "estradiol (e2)", "ca-125", "prostate volume",
-            "prostate", "seminal vesicles", "pap smear", "hpv dna test",
-            "pelvic ultrasound", "uterus", "ovaries", "cervix",
-            "endometrium",
-        ],
-    },
-    {
+        # Reproductive Health removed — superseded by sex-specific
+        # Women's Health and Men's Health cards. All reproductive
+        # parameters now live exclusively in those two organs.
         "organ_name": 'Bone, Muscle & Joint Health',
         "icon": '🦴',
         "display_order": 9,
@@ -197,13 +187,14 @@ ORGAN_DEFINITIONS = [
         "display_order": 11,
         "gender": 'U',
         "params": [
-            "agaston score", "lipoprotein (a)", "apolipoprotein b", "mesentric vessels",
-            "renal vessels", "iliac vessels", "aorta & branches", "superior venacava",
-            "ivc and tributaries", "other major vessels", "aorta and branches", "neck vessels",
-            "splenic vessels", "agatston score", "apoa1", "fibrinogen",
-            "nt-probnp", "d-dimer", "pt / inr", "homa-ir",
-            "carotid cimt", "carotid plaque score", "fat mass index", "trunk:limb fat ratio",
-            "p-wave duration",
+            # Peripheral vessels only — coronary calcium lives under Heart Health
+            "mesentric vessels", "renal vessels", "iliac vessels", "aorta & branches",
+            "superior venacava", "ivc and tributaries", "other major vessels",
+            "aorta and branches", "neck vessels", "splenic vessels",
+            "carotid cimt", "carotid plaque score",
+            # Vascular-risk lab markers
+            "fibrinogen", "d-dimer", "pt / inr", "homa-ir",
+            "fat mass index", "trunk:limb fat ratio",
         ],
     },
     {

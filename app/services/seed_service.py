@@ -63,7 +63,6 @@ def seed_demo():
         ("Kidney & Urinary Health", "minor", "Mild Health Concern", 0, 0, 3, 49, "🫘", 4),
         ("Inflammation & Immune Health", "minor", "Mild Health Concern", 0, 0, 6, 2, "🛡️", 5),
         ("General Health, Blood & Nutrients", "minor", "Mild Health Concern", 0, 0, 4, 41, "🩸", 6),
-        ("Reproductive Health", "normal", "Healthy and Stable", 0, 0, 0, 13, "🌿", 7),
         ("Bone, Muscle & Joint Health", "minor", "Mild Health Concern", 0, 0, 3, 22, "🦴", 8),
         ("Lung & Respiratory Health", "normal", "Healthy and Stable", 0, 0, 1, 18, "🫧", 9),
     ]
