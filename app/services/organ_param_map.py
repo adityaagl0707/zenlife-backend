@@ -14,8 +14,8 @@ ORGAN_DEFINITIONS = [
             # Coronary calcium / cardiac chamber / ECG
             "agaston score", "agatston score", "st segment", "pericardium",
             "heart rate", "qt interval (qtc)", "rhythm", "qrs duration",
-            "pr interval", "p-wave duration", "cardia",
-            # Cardiac risk markers (lipids + cardiac proteins)
+            "pr interval", "p-wave duration",
+            # Cardiac risk markers (lipid panel + cardiac proteins + homocysteine)
             "ldl cholesterol", "homocysteine levels", "total cholesterol",
             "hdl cholesterol", "triglycerides", "non-hdl cholesterol", "vldl cholesterol",
             "triglycerides / hdl", "total cholesterol / hdl", "hdl/ldl ratio", "lipoprotein (a)",
@@ -34,25 +34,20 @@ ORGAN_DEFINITIONS = [
         "display_order": 2,
         "gender": 'U',
         "params": [
-            # Metabolic / body composition
-            "gynoid fat", "visceral fat mass", "android:gynoid ratio", "android fat",
-            "bmi", "body fat", "fat mass index", "trunk:limb fat ratio",
+            # Metabolic / body composition (canonical home for all DEXA fat/lean)
+            "gynoid fat", "visceral fat mass", "visceral fat level",
+            "android:gynoid ratio", "android fat", "bmi", "body fat",
+            "fat mass index", "fat free mass", "total fat mass",
+            "trunk fat mass", "trunk:limb fat ratio",
             # Glucose / insulin axis
             "fasting blood glucose test", "fasting blood sugar", "fasting glucose", "fbs", "glucose",
             "average blood glucose", "hba1c", "insulin", "c-peptide", "homa-ir", "ketone",
-            # Lipids (also in Heart for risk; resolved in next pass)
-            "ldl cholesterol", "total cholesterol", "hdl cholesterol", "triglycerides",
-            "non-hdl cholesterol", "vldl cholesterol", "triglycerides / hdl",
-            "total cholesterol / hdl", "hdl/ldl ratio", "lipoprotein (a)",
-            "apolipoprotein b", "ldl/hdl ratio",
-            # Liver-fat (also in Liver; resolved next pass)
-            "liver steatosis grade", "liver fat %",
             # Thyroid axis
             "tsh", "thyroxine (t4) free", "triiodothyronine (t3) free", "reverse t3",
             "tpo", "anti-tg", "thyroid", "thyroid lesions", "thyroid volume",
-            # Adrenal / sex / growth hormones (Hormonal & Vitality merge)
-            "adrenals", "cortisol", "dhea", "igf-1", "shbg",
-            "testosterone", "free testosterone", "estradiol (e2)", "psa",
+            # Adrenal / growth (sex hormones live in Men's / Women's; lipids in Heart;
+            # liver-fat in Liver; PSA / E2 / testosterone moved to sex-specific cards)
+            "adrenals", "cortisol", "dhea", "igf-1",
             # Rollup labels
             "endocrine and metabolic health: degenerative", "endocrine and metabolic health: post-infective",
             "endocrine and metabolic health: inflammation", "endocrine and metabolic health: traumatic issues",
@@ -69,9 +64,9 @@ ORGAN_DEFINITIONS = [
             "ast", "total protein", "globulin", "alt",
             "abdominal wall", "ggt", "bilirubin (indirect)", "serum albumin/globulin",
             "albumin", "total bilirubin", "bilirubin direct", "alp",
-            "lipase", "amylase", "ast/alt ratio", "mesentric vessels",
-            "peritoneum", "retroperitoneum", "cardia", "peri-rectal fat",
-            "rectum & rectosigmoid", "perisplenic region", "splenic vessels", "peripancreatic region",
+            "lipase", "amylase", "ast/alt ratio",
+            "peritoneum", "cardia", "peri-rectal fat",
+            "rectum & rectosigmoid", "perisplenic region", "peripancreatic region",
             "liver parenchyma", "extrahepatic biliary tree", "liver and digestive health: degenerative", "liver and digestive health: traumatic issues",
             "liver and digestive health: post-infective", "liver and digestive health: inflammation", "pancreatic parenchyma", "bowel",
             "splenic hilum", "spleen parenchyma", "spleen size & outline", "pancreas outline",
@@ -90,7 +85,7 @@ ORGAN_DEFINITIONS = [
         "display_order": 4,
         "gender": 'U',
         "params": [
-            "homocysteine levels", "brain: ischemic causes", "cerebral white matter", "brain: degenerative",
+            "brain: ischemic causes", "cerebral white matter", "brain: degenerative",
             "brain: post-infective", "brain: infective-active", "brain: congenital causes", "lacrimal glands",
             "orbital fat", "optic nerve", "globes", "orbits",
             "maxillary sinuses", "frontal sinuses", "paranasal sinuses", "veins",
@@ -114,10 +109,10 @@ ORGAN_DEFINITIONS = [
             "urinary bilirubin", "urine blood", "urinary glucose", "creatinine urine",
             "leucocyte esterase", "nitrite", "specific gravity", "appearance",
             "pelvic lymphnodes", "pelvic cavity", "pelvic soft tissues", "other pelvic viscera",
-            "mesentric vessels", "psoas muscles", "retroperitoneum", "urinary bladder contents",
+            "retroperitoneum", "urinary bladder contents",
             "ureters", "peri-renal fat", "cortico-sinus signals", "kidney & urinary health: degenerative",
             "kidney & urinary health: post-infective", "kidney & urinary health: inflammation", "kidney & urinary health: congenital causes", "urinary bladder perivesical fat",
-            "urinary bladder contour", "peri-renal spaces", "renal vessels", "collecting system",
+            "urinary bladder contour", "peri-renal spaces", "collecting system",
             "kidneys size, outline", "kidney & urinary health: tumours", "kidney & urinary health: infective-active", "kidney & urinary health: ischemic causes",
             "kidney & urinary health: traumatic issues", "cystatin c", "pth", "renal cortical thickness",
         ],
@@ -129,9 +124,6 @@ ORGAN_DEFINITIONS = [
         "display_order": 6,
         "gender": 'U',
         "params": [
-            # Body composition (also overlaps with Endocrine; resolve next pass)
-            "gynoid fat", "visceral fat mass", "android:gynoid ratio", "android fat",
-            "bmi", "body fat",
             # CBC (counts + diff %)
             "rbc", "wbc", "leukocytes", "hemoglobin", "hematocrit", "mcv", "rdw", "mch", "mchc",
             "platelet count", "plateletcrit (pct)", "mpv", "pdw", "plcr", "rdw-sd",
@@ -140,17 +132,16 @@ ORGAN_DEFINITIONS = [
             "lymphocytes", "lymphocytes - count", "monocytes", "monocytes - count",
             "neutrophils", "neutrophils - count",
             "lymph %", "lymphocyte %", "lymphocyte percentage", "lymphocytes %",
-            # Inflammation / immunity markers
+            # Inflammation / immunity markers (clotting markers moved to Vascular)
             "hs-crp", "c reactive protein", "c-reactive protein", "crp",
-            "esr", "fibrinogen", "d-dimer", "ige", "homocysteine levels",
-            "neck lymphnodes",
+            "esr", "ige", "neck lymphnodes",
             # Nutrients
             "iron", "iron % saturation", "tibc", "uibc", "ferritin",
             "vitamin a", "vitamin b12", "vitamin d", "vitamin e",
             "folate (b9)", "copper", "zinc", "selenium", "magnesium, rbc",
-            "calcium", "phosphorus",
-            # Misc / structural
-            "abdominal wall", "peritoneum", "lean mass", "rsmi", "ldh", "cea",
+            "calcium",
+            # Tumour markers
+            "ldh",
             "general health, blood and nutrients",
         ],
     },
@@ -169,7 +160,7 @@ ORGAN_DEFINITIONS = [
             "bone, muscle & joint health: degenerative", "bone, muscle & joint health: tumours", "bone, muscle & joint health: infective-active", "bone, muscle & joint health: ischemic causes",
             "bone, muscle & joint health: congenital causes", "cord, conus", "paravertebral muscles", "facets",
             "spine: ligaments", "marrow signals", "vertebral body alignment", "vertebral bodies",
-            "spinal canal", "foramina", "spine: signal intensities", "pth",
+            "spinal canal", "foramina", "spine: signal intensities",
             "phosphorus", "asmi",
         ],
     },
@@ -179,7 +170,7 @@ ORGAN_DEFINITIONS = [
         "display_order": 8,
         "gender": 'U',
         "params": [
-            "neck lymphnodes", "pulmonary fibrosis", "copd / emphysema", "lung vasculature",
+            "pulmonary fibrosis", "copd / emphysema", "lung vasculature",
             "airway condition", "lung volume", "pneumonia / infection", "mediastinum & lymph nodes",
             "pleural space", "lung nodules & masses", "lung parenchyma", "mediastinal lymph nodes",
             "subglottis", "lung and respiratory health: degenerative", "lung and respiratory health: post-infective", "lung and respiratory health: inflammation",
@@ -193,14 +184,13 @@ ORGAN_DEFINITIONS = [
         "display_order": 9,
         "gender": 'U',
         "params": [
-            # Peripheral vessels only — coronary calcium lives under Heart Health
+            # Peripheral vessels — coronary calcium lives under Heart Health
             "mesentric vessels", "renal vessels", "iliac vessels", "aorta & branches",
             "superior venacava", "ivc and tributaries", "other major vessels",
             "aorta and branches", "neck vessels", "splenic vessels",
             "carotid cimt", "carotid plaque score",
-            # Vascular-risk lab markers
-            "fibrinogen", "d-dimer", "pt / inr", "homa-ir",
-            "fat mass index", "trunk:limb fat ratio",
+            # Clotting / thrombosis markers
+            "fibrinogen", "d-dimer",
         ],
     },
     # Hormonal & Vitality Health merged into Endocrine & Hormonal Health
