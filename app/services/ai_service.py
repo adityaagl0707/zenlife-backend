@@ -276,11 +276,16 @@ def build_report_context(report) -> str:
 
 def chat_with_zeno(report, user_message: str) -> str:
     """Zeno AI chat — powered by Google Gemini 2.5 Flash."""
+    from datetime import datetime, time, timezone, timedelta
     report_context = build_report_context(report)
 
-    # Load chat history (last 20 messages, oldest first)
+    # Load TODAY's chat history only — the conversation resets at midnight
+    # IST so each day starts fresh. Last 20 messages of today, oldest first.
+    _ist = timezone(timedelta(hours=5, minutes=30))
+    _now_ist = datetime.now(_ist)
+    _today_utc = datetime.combine(_now_ist.date(), time(0, 0), tzinfo=_ist).astimezone(timezone.utc).replace(tzinfo=None)
     history_rows = sorted(
-        mongo.ChatMessage.find({"report_id": report["id"]}),
+        mongo.ChatMessage.find({"report_id": report["id"], "created_at": {"$gte": _today_utc}}),
         key=lambda m: m.get("created_at") or 0,
     )[-20:]
     history = [{"role": m.get("role"), "content": m.get("content")} for m in history_rows]
@@ -648,8 +653,8 @@ def generate_finding_explanations(findings: list) -> dict:
     )
 
     prompt = f"""For each of the following lab/imaging measurements, write:
-  - "what": a 1-sentence plain-English explanation of what this value means for the patient (max 30 words).
-  - "do":   a 1-sentence concrete next step (max 25 words). Start with a verb.
+  - "what": a 1-sentence plain-English explanation of what this value means for the patient (max 30 words). Reads as connected prose.
+  - "do":   actionable next steps. If there is ONE clear action, write it as one short sentence (max 25 words). If there are 2-4 steps, separate each step with " / " (forward slash with spaces). Each step starts with a verb, max 18 words.
 
 Reference the actual value vs the normal range. No medical jargon. No abbreviations beyond common ones (BP, HR, BMI). Be honest about severity but not alarmist.
 
