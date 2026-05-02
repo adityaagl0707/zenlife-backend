@@ -390,7 +390,10 @@ def parse_excel_lab_results(file_bytes: bytes) -> list[dict]:
         normal_range = str(row[range_col] or '').strip() if len(row) > range_col else ''
         description = str(row[desc_col] or '').strip() if len(row) > desc_col else ''
 
-        if not name or not value or value in ('', 'None', '-', 'N/A'):
+        # Skip only truly-empty rows. "None", "Negative", "Absent", "Nil" etc.
+        # are VALID qualitative answers (e.g. urine microscopy: Casts=None,
+        # Crystals=None) and must be preserved.
+        if not name or value in ('', '-', '—', 'N/A'):
             continue
 
         # Normalise alias spellings to the canonical name
