@@ -354,17 +354,19 @@ def extract_report_parameters(section_type: str, file_b64: str, file_mime: str, 
     )
     section_label = SECTION_META.get(section_type, {}).get("label", section_type)
 
-    prompt = f"""You are a senior medical data extraction AI. Analyse this {section_label} report image/document.
+    prompt = f"""You are a friendly health coach reading a {section_label} report for a patient who has no medical training. Extract every parameter listed below.
 
-Extract the value for EVERY parameter listed below. For each parameter:
-1. Extract the exact value as shown in the report (or "Not Found" if absent)
-2. Classify severity as one of: critical / major / minor / normal
+For EACH parameter:
+1. value: extract the exact value shown in the report (or "Not Found" if absent)
+2. severity: one of critical / major / minor / normal
    - critical = urgently abnormal, needs immediate medical attention
    - major = significantly abnormal, needs medical follow-up soon
    - minor = mildly abnormal, worth monitoring
    - normal = within healthy range
-3. Write 1-2 sentence clinical findings explaining what this value means clinically
-4. Write 1 sentence recommendation for this specific finding
+3. clinical_findings: ONE short sentence (max 20 words) in PLAIN ENGLISH explaining what this value means for the patient. NO medical jargon. NO Latin. Use everyday words. Example: "Your blood sugar is slightly above the healthy range, which can stress your body over time."
+4. recommendations: ONE clear, doable action (max 15 words). Start with a verb. Example: "Cut back on sweet drinks and aim for 30 min of walking after dinner."
+
+For parameters that are NORMAL, keep clinical_findings to a single short reassurance ("This is in the healthy range — no action needed.") and leave recommendations empty.
 
 Parameters to extract:
 {param_list}
@@ -538,18 +540,26 @@ Overall Severity: {(report.get('overall_severity') or 'normal').upper()}
 === MINOR FINDINGS (sample) ===
 {fmt(minor[:10])}
 
-Based on the above, generate 3-5 personalised health priorities for this patient, ranked by urgency.
-For each priority return structured JSON. Focus on actionable lifestyle changes the patient can start immediately.
+Based on the above, generate 3 (maximum 5) personalised health priorities for this patient, ranked by urgency.
+
+Write for someone with NO medical background. Be warm, direct and practical.
+
+STYLE RULES — follow strictly:
+- title: 4–6 words, action-oriented, plain English (e.g. "Lower your heart attack risk", NOT "Mitigate cardiovascular morbidity").
+- why_important: ONE short sentence (max 25 words). Explain WHY in everyday language, mentioning the specific finding that triggered this priority.
+- Each recommendation list item: ONE concrete action, max 12 words. Start with a verb. NO jargon. Specific quantities where useful (e.g. "Walk 30 min after dinner, 5 days a week").
+- Keep each list to 2–4 items (no walls of text).
+- Skip supplement_recommendations entirely if no supplement is needed (return [] or omit).
 
 Return ONLY a valid JSON array (no markdown):
 [
   {{
-    "title": "short action-oriented title",
-    "why_important": "2-3 sentence explanation of why this matters for this specific patient",
-    "diet_recommendations": ["specific food advice 1", "specific food advice 2"],
-    "exercise_recommendations": ["specific exercise advice 1", "specific exercise advice 2"],
-    "sleep_recommendations": ["specific sleep advice 1"],
-    "supplement_recommendations": ["specific supplement if relevant, else omit"]
+    "title": "short action title (4-6 words)",
+    "why_important": "one short plain-English sentence (max 25 words)",
+    "diet_recommendations": ["short action 1", "short action 2"],
+    "exercise_recommendations": ["short action 1", "short action 2"],
+    "sleep_recommendations": ["short action 1"],
+    "supplement_recommendations": []
   }}
 ]"""
 
