@@ -630,6 +630,66 @@ Return ONLY a valid JSON array (no markdown):
         return []
 
 
+def generate_finding_explanations(findings: list) -> dict:
+    """
+    Bulk-generate `clinical_findings` (What this means) + `recommendations`
+    (What to do) for a batch of findings. Returns {finding_name: {what, do}}.
+
+    Designed for back-filling rows where the admin / AI extraction left
+    these fields blank. Patient-facing — keep tone warm and plain English.
+    """
+    if not settings.anthropic_api_key or not findings:
+        return {}
+
+    rows = "\n".join(
+        f"{i+1}. {f.get('name')} = {f.get('value') or 'N/A'} {f.get('unit') or ''} "
+        f"(normal: {f.get('normal_range') or 'N/A'}, severity: {f.get('severity') or 'normal'})"
+        for i, f in enumerate(findings)
+    )
+
+    prompt = f"""For each of the following lab/imaging measurements, write:
+  - "what": a 1-sentence plain-English explanation of what this value means for the patient (max 30 words).
+  - "do":   a 1-sentence concrete next step (max 25 words). Start with a verb.
+
+Reference the actual value vs the normal range. No medical jargon. No abbreviations beyond common ones (BP, HR, BMI). Be honest about severity but not alarmist.
+
+If a value is normal, "what" can reassure ("Within healthy range — no action needed.") and "do" can be empty string OR a maintenance tip.
+
+=== MEASUREMENTS ===
+{rows}
+
+Return ONLY a valid JSON object keyed by exact measurement name (case-sensitive, exactly as given):
+{{
+  "Fasting Blood Glucose": {{"what": "...", "do": "..."}},
+  "HbA1c": {{"what": "...", "do": "..."}}
+}}"""
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:
+        print(f"[generate_finding_explanations] AI engine error: {e}")
+        return {}
+
+    raw = (response.content[0].text or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.rstrip("`").strip()
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict):
+            return result
+    except Exception as e:
+        print(f"[generate_finding_explanations] Parse error: {e}\nFirst 400 chars: {raw[:400]}")
+    return {}
+
+
 def generate_health_plan(report, findings: list, organs: list, priorities: list) -> dict:
     """
     Generate a holistic, personalised health plan that mixes medical
