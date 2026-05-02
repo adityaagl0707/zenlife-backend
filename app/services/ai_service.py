@@ -630,6 +630,107 @@ Return ONLY a valid JSON array (no markdown):
         return []
 
 
+def generate_health_plan(report, findings: list, organs: list, priorities: list) -> dict:
+    """
+    Generate a holistic, personalised health plan that mixes medical
+    follow-ups, diet, exercise, sleep, stress and monitoring. Returns a
+    dict of category → list of action strings. Categories are chosen so
+    the patient sees a single integrated plan rather than priority-by-
+    priority recommendations.
+    """
+    if not settings.anthropic_api_key:
+        return {}
+
+    order = mongo.Order.find_one({"id": report.get("order_id")}) or {}
+
+    crit = [f for f in findings if (f.get("severity") or "").lower() == "critical"]
+    major = [f for f in findings if (f.get("severity") or "").lower() == "major"]
+    minor = [f for f in findings if (f.get("severity") or "").lower() == "minor"]
+
+    def fmt(items):
+        return "\n".join(
+            f"  - {f.get('name')}: {f.get('value') or 'N/A'} {f.get('unit') or ''}"
+            for f in items
+        ) or "  None"
+
+    organ_lines = "\n".join(
+        f"  - {o.get('organ_name')}: {(o.get('severity') or 'normal').upper()}"
+        for o in organs if (o.get('severity') or 'normal').lower() != 'normal'
+    ) or "  All organ systems healthy"
+
+    priority_titles = "\n".join(f"  {i+1}. {p.get('title')}" for i, p in enumerate(priorities)) or "  None defined"
+
+    prompt = f"""Patient: {order.get('patient_name','Patient')}, Age: {order.get('patient_age','N/A')}, Gender: {order.get('patient_gender','N/A')}
+Overall Severity: {(report.get('overall_severity') or 'normal').upper()}
+
+=== ORGAN SYSTEMS NEEDING ATTENTION ===
+{organ_lines}
+
+=== TOP HEALTH PRIORITIES (already identified) ===
+{priority_titles}
+
+=== CRITICAL FINDINGS ===
+{fmt(crit)}
+
+=== MAJOR FINDINGS ===
+{fmt(major)}
+
+=== MINOR FINDINGS (sample) ===
+{fmt(minor[:8])}
+
+You are creating ONE integrated health plan for this patient — a doctor's prescription written in plain English that covers every angle. The patient already sees per-priority recommendations elsewhere; this is the holistic single plan.
+
+Categories to fill (return ONLY these exact keys):
+- medical_consultations: 2-4 specific specialist visits or tests to schedule (e.g. "Cardiologist consult within 2 weeks", "Repeat lipid panel in 3 months").
+- diet_plan: 3-5 overarching eating principles tailored to this patient's findings.
+- exercise_plan: 2-4 specific activity recommendations with duration / frequency.
+- sleep_and_stress: 2-3 actions for sleep hygiene + stress management.
+- supplements: 0-3 supplements with dose. Empty list if none indicated.
+- monitoring: 2-3 vitals/parameters they should track between scans.
+
+STYLE RULES (strict):
+- Each item: ONE concrete action, max 14 words. Start with a verb.
+- No medical jargon. No abbreviations beyond common ones (BP, HR, BMI).
+- Specific quantities where useful (mg, minutes, days/week).
+- Reference the actual findings — generic advice is wrong.
+
+Return ONLY a valid JSON object (no markdown, no preamble):
+{{
+  "medical_consultations": ["..."],
+  "diet_plan": ["..."],
+  "exercise_plan": ["..."],
+  "sleep_and_stress": ["..."],
+  "supplements": [],
+  "monitoring": ["..."]
+}}"""
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:
+        print(f"[generate_health_plan] AI engine error: {e}")
+        return {}
+
+    raw = (response.content[0].text or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.rstrip("`").strip()
+
+    try:
+        result = json.loads(raw)
+        if isinstance(result, dict):
+            return result
+    except Exception as e:
+        print(f"[generate_health_plan] Could not parse AI response: {e}\nFirst 400 chars: {raw[:400]}")
+    return {}
+
+
 _FALLBACK_STARTERS = [
     "What are my most critical findings?",
     "What lifestyle changes should I make?",

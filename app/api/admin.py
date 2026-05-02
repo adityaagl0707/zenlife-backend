@@ -22,7 +22,7 @@ def _patient_gender_for_report(report_id):
         u = mongo.User.find_one({"id": order["user_id"]})
         g = (u or {}).get("gender")
     return g
-from ..services.ai_service import extract_report_parameters, generate_priorities
+from ..services.ai_service import extract_report_parameters, generate_priorities, generate_health_plan
 from ..services.dexa_calc import autocompute_dexa
 from ..services.organ_param_map import ORGAN_DEFINITIONS, RISK_LABELS, canon
 
@@ -1057,3 +1057,30 @@ def auto_generate_priorities(report_id: int):
         })
 
     return {"ok": True, "count": len(priorities)}
+
+
+@router.post("/reports/{report_id}/generate-health-plan")
+def auto_generate_health_plan(report_id: int):
+    """Generate (or refresh) the integrated AI health plan for a report.
+    Stored as `health_plan` field on the Report document — it's a single
+    JSON blob so a separate collection isn't needed."""
+    report = mongo.Report.find_one({"id": report_id})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    findings = mongo.Finding.find({"report_id": report_id})
+    organs = sorted(
+        mongo.OrganScore.find({"report_id": report_id}),
+        key=lambda o: o.get("display_order", 0),
+    )
+    priorities = sorted(
+        mongo.HealthPriority.find({"report_id": report_id}),
+        key=lambda p: p.get("priority_order", 0),
+    )
+
+    plan = generate_health_plan(report, findings, organs, priorities)
+    if not plan:
+        raise HTTPException(status_code=422, detail="AI could not generate health plan. Check API key or try again.")
+
+    mongo.Report.update_one({"id": report_id}, {"$set": {"health_plan": plan}})
+    return {"ok": True, "plan": plan}

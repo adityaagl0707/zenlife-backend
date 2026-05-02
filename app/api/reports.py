@@ -356,6 +356,7 @@ def get_shared_report(token: str):
         "next_visit": _date_str(r.get("next_visit")),
         "summary": r.get("summary"),
         "finding_counts": finding_counts,
+        "health_plan": r.get("health_plan") or None,
     }
 
 
