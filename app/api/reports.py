@@ -61,6 +61,7 @@ def get_report(report_id: int, current_user=Depends(get_current_user)):
         "patient_age": order.get("patient_age"),
         "patient_gender": order.get("patient_gender"),
         "booking_id": order.get("booking_id"),
+        "zen_id": order.get("zen_id") or current_user.get("zen_id"),
         "coverage_index": r.get("coverage_index"),
         "overall_severity": r.get("overall_severity"),
         "report_date": _date_str(r.get("report_date")),
