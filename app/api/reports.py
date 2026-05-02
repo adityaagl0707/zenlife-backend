@@ -11,6 +11,29 @@ from ..services.pdf_service import (
     generate_lab_csv,
     safe_filename,
 )
+from ..services.section_params import SECTION_PARAMETERS, _gender_norm
+
+
+def _gender_excluded_names(patient_gender: str) -> set[str]:
+    """Names of params that don't apply to this patient's gender — used to
+    strip female-only findings from a male's report and vice versa."""
+    g = _gender_norm(patient_gender)
+    if g is None:
+        return set()
+    excluded = set()
+    for plist in SECTION_PARAMETERS.values():
+        for p in plist:
+            pg = (p.get("gender") or "").upper()
+            if pg in ("M", "F") and pg != g:
+                excluded.add(p["name"].lower().strip())
+    return excluded
+
+
+def _filter_by_gender(items: list, patient_gender: str, name_key: str = "name") -> list:
+    excluded = _gender_excluded_names(patient_gender)
+    if not excluded:
+        return items
+    return [it for it in items if (it.get(name_key) or "").lower().strip() not in excluded]
 
 _settings = get_settings()
 
@@ -50,10 +73,16 @@ def get_report(report_id: int, current_user=Depends(get_current_user)):
             "patient_name": order.get("patient_name"),
             "booking_id": order.get("booking_id"),
         }
-    finding_counts = {
-        sev: mongo.Finding.count({"report_id": r["id"], "severity": sev})
-        for sev in ("critical", "major", "minor", "normal")
-    }
+    # Compute finding counts excluding gender-inapplicable rows so the
+    # severity bars match what the patient actually sees in the panel.
+    excluded = _gender_excluded_names(order.get("patient_gender"))
+    finding_counts = {sev: 0 for sev in ("critical", "major", "minor", "normal")}
+    for f in mongo.Finding.find({"report_id": r["id"]}):
+        if (f.get("name") or "").lower().strip() in excluded:
+            continue
+        sev = f.get("severity")
+        if sev in finding_counts:
+            finding_counts[sev] += 1
     return {
         "id": r["id"],
         "is_published": True,
@@ -111,6 +140,9 @@ def get_findings(
     if test_type:
         q["test_type"] = test_type
     findings = mongo.Finding.find(q)
+    excluded = _gender_excluded_names(r["order"].get("patient_gender"))
+    # Also exclude params the admin marked ignored for this patient
+    ignored = {n.lower().strip() for n in (r.get("ignored_params") or [])}
     return [
         {
             "id": f["id"],
@@ -126,6 +158,8 @@ def get_findings(
             "extra_data": f.get("extra_data"),
         }
         for f in findings
+        if (f.get("name") or "").lower().strip() not in excluded
+        and (f.get("name") or "").lower().strip() not in ignored
     ]
 
 
@@ -301,10 +335,14 @@ def get_shared_report(token: str):
     order = mongo.Order.find_one({"id": r["order_id"]}) or {}
     if not r.get("is_published"):
         return {"id": rid, "is_published": False, "patient_name": order.get("patient_name"), "booking_id": order.get("booking_id")}
-    finding_counts = {
-        sev: mongo.Finding.count({"report_id": rid, "severity": sev})
-        for sev in ("critical", "major", "minor", "normal")
-    }
+    excluded = _gender_excluded_names(order.get("patient_gender"))
+    finding_counts = {sev: 0 for sev in ("critical", "major", "minor", "normal")}
+    for f in mongo.Finding.find({"report_id": rid}):
+        if (f.get("name") or "").lower().strip() in excluded:
+            continue
+        sev = f.get("severity")
+        if sev in finding_counts:
+            finding_counts[sev] += 1
     return {
         "id": rid,
         "is_published": True,
