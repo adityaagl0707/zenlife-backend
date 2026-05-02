@@ -24,7 +24,7 @@ def _patient_gender_for_report(report_id):
     return g
 from ..services.ai_service import extract_report_parameters, generate_priorities
 from ..services.dexa_calc import autocompute_dexa
-from ..services.organ_param_map import ORGAN_DEFINITIONS, RISK_LABELS
+from ..services.organ_param_map import ORGAN_DEFINITIONS, RISK_LABELS, canon
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -473,7 +473,9 @@ def _sync_organs_bg(report_id: int) -> None:
             "organ_name": {"$nin": list(canonical_names)},
         })
         findings = mongo.Finding.find({"report_id": report_id})
-        finding_sev = {f["name"].lower().strip(): f.get("severity") for f in findings if f.get("name")}
+        # Apply alias canonicalization on lookup so "Lymphocytes" /
+        # "agaston score" / etc. match the canonical entries in the organ map.
+        finding_sev = {canon(f["name"]): f.get("severity") for f in findings if f.get("name")}
 
         for defn in ORGAN_DEFINITIONS:
             organ_gender = defn.get("gender", "U")
@@ -484,7 +486,7 @@ def _sync_organs_bg(report_id: int) -> None:
 
             counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
             for p in defn["params"]:
-                sev = finding_sev.get(p)
+                sev = finding_sev.get(canon(p))
                 if sev and sev in counts:
                     counts[sev] += 1
             severity = (
@@ -835,7 +837,7 @@ def sync_organs(report_id: int):
     })
 
     findings = mongo.Finding.find({"report_id": report_id})
-    finding_sev = {f["name"].lower().strip(): f.get("severity") for f in findings if f.get("name")}
+    finding_sev = {canon(f["name"]): f.get("severity") for f in findings if f.get("name")}
 
     organs_synced = 0
     for defn in ORGAN_DEFINITIONS:
@@ -847,7 +849,7 @@ def sync_organs(report_id: int):
 
         counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
         for p in defn["params"]:
-            sev = finding_sev.get(p)
+            sev = finding_sev.get(canon(p))
             if sev and sev in counts:
                 counts[sev] += 1
 
@@ -899,7 +901,7 @@ def sync_all_organs():
         })
 
         findings = mongo.Finding.find({"report_id": report["id"]})
-        finding_sev = {f["name"].lower().strip(): f.get("severity") for f in findings if f.get("name")}
+        finding_sev = {canon(f["name"]): f.get("severity") for f in findings if f.get("name")}
 
         for defn in ORGAN_DEFINITIONS:
             organ_gender = defn.get("gender", "U")
@@ -910,7 +912,7 @@ def sync_all_organs():
 
             counts = {"critical": 0, "major": 0, "minor": 0, "normal": 0}
             for p in defn["params"]:
-                sev = finding_sev.get(p)
+                sev = finding_sev.get(canon(p))
                 if sev and sev in counts:
                     counts[sev] += 1
             severity = (

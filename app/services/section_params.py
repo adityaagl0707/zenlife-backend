@@ -244,14 +244,10 @@ SECTION_PARAMETERS = {
 
     "usg": [
         # Liver
-        {"name": "Liver Parenchyma", "unit": "", "normal": "Normal"},
         {"name": "Liver Outline & Size", "unit": "", "normal": "Normal"},
         {"name": "Liver: Focal changes", "unit": "", "normal": "None"},
         {"name": "Liver: Portal vein", "unit": "", "normal": "Normal"},
         {"name": "Liver: Hepatic veins", "unit": "", "normal": "Normal"},
-        {"name": "Intrahepatic biliary Radicals", "unit": "", "normal": "Normal"},
-        {"name": "Extrahepatic biliary tree", "unit": "", "normal": "Normal"},
-        {"name": "Periportal region", "unit": "", "normal": "Normal"},
         # Gallbladder
         {"name": "Gallbladder size", "unit": "", "normal": "Normal"},
         {"name": "Gallbladder wall", "unit": "", "normal": "Normal"},
@@ -289,28 +285,16 @@ SECTION_PARAMETERS = {
         {"name": "Mesentric vessels", "unit": "", "normal": "Normal"},
         # Abdominal / Other
         {"name": "Abdominal wall", "unit": "", "normal": "Normal"},
-        {"name": "Peritoneum", "unit": "", "normal": "Normal"},
-        {"name": "Retroperitoneum", "unit": "", "normal": "Normal"},
-        {"name": "Psoas Muscles", "unit": "", "normal": "Normal"},
-        {"name": "Bowel", "unit": "", "normal": "Normal"},
         {"name": "Rectum & Rectosigmoid", "unit": "", "normal": "Normal"},
-        {"name": "Oesophagus", "unit": "", "normal": "Normal"},
         # Lymph Nodes
         {"name": "Abdominal Lymph nodes", "unit": "", "normal": "Normal"},
         {"name": "Neck Lymphnodes", "unit": "", "normal": "Normal"},
-        {"name": "Pelvic lymphnodes", "unit": "", "normal": "Normal"},
         # Neck / Thyroid
         {"name": "Thyroid Volume", "unit": "", "normal": "Normal"},
         {"name": "Thyroid Lesions", "unit": "", "normal": "None"},
-        {"name": "Adrenals", "unit": "", "normal": "Normal"},
         # Reproductive
         {"name": "Prostate Size (if male)", "unit": "cc", "normal": "<30", "gender": "M"},
-        {"name": "Pelvic cavity", "unit": "", "normal": "Normal"},
-        {"name": "Pelvic soft tissues", "unit": "", "normal": "Normal"},
-        {"name": "Other pelvic viscera", "unit": "", "normal": "Normal"},
         # Neck / other
-        {"name": "Parotid Glands", "unit": "", "normal": "Normal"},
-        {"name": "Neck Vessels", "unit": "", "normal": "Normal"},
         # Vascular Assessment
         {"name": "Carotid CIMT", "unit": "mm", "normal": "<0.9"},
         {"name": "Carotid Plaque Score", "unit": "", "normal": "0 / None"},
