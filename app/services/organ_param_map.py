@@ -28,24 +28,36 @@ ORGAN_DEFINITIONS = [
         ],
     },
     {
-        "organ_name": 'Endocrine & Metabolic Health',
+        # Merged: Endocrine & Metabolic + Hormonal & Vitality
+        "organ_name": 'Endocrine & Hormonal Health',
         "icon": '⚡',
         "display_order": 2,
         "gender": 'U',
         "params": [
-            "gynoid fat", "visceral fat mass", "ldl cholesterol", "fasting blood glucose test",
-            "total cholesterol", "hdl cholesterol", "triglycerides", "non-hdl cholesterol",
-            "cortisol", "dhea", "vldl cholesterol", "triglycerides / hdl",
-            "total cholesterol / hdl", "hdl/ldl ratio", "android:gynoid ratio", "android fat",
-            "bmi", "body fat", "tpo", "insulin",
-            "hba1c", "ketone", "tsh", "thyroxine (t4) free",
-            "triiodothyronine (t3) free", "average blood glucose", "testosterone", "lipoprotein (a)",
-            "apolipoprotein b", "ldl/hdl ratio", "endocrine and metabolic health: degenerative", "endocrine and metabolic health: post-infective",
-            "endocrine and metabolic health: inflammation", "endocrine and metabolic health: traumatic issues", "adrenals", "thyroid",
-            "endocrine and metabolic health: tumours", "endocrine and metabolic health: infective-active", "endocrine and metabolic health: ischemic causes", "endocrine and metabolic health: congenital causes",
-            "fasting blood sugar", "fasting glucose", "fbs", "glucose",
-            "c-peptide", "igf-1", "reverse t3", "homa-ir",
-            "liver steatosis grade", "liver fat %", "fat mass index", "trunk:limb fat ratio",
+            # Metabolic / body composition
+            "gynoid fat", "visceral fat mass", "android:gynoid ratio", "android fat",
+            "bmi", "body fat", "fat mass index", "trunk:limb fat ratio",
+            # Glucose / insulin axis
+            "fasting blood glucose test", "fasting blood sugar", "fasting glucose", "fbs", "glucose",
+            "average blood glucose", "hba1c", "insulin", "c-peptide", "homa-ir", "ketone",
+            # Lipids (also in Heart for risk; resolved in next pass)
+            "ldl cholesterol", "total cholesterol", "hdl cholesterol", "triglycerides",
+            "non-hdl cholesterol", "vldl cholesterol", "triglycerides / hdl",
+            "total cholesterol / hdl", "hdl/ldl ratio", "lipoprotein (a)",
+            "apolipoprotein b", "ldl/hdl ratio",
+            # Liver-fat (also in Liver; resolved next pass)
+            "liver steatosis grade", "liver fat %",
+            # Thyroid axis
+            "tsh", "thyroxine (t4) free", "triiodothyronine (t3) free", "reverse t3",
+            "tpo", "anti-tg", "thyroid", "thyroid lesions", "thyroid volume",
+            # Adrenal / sex / growth hormones (Hormonal & Vitality merge)
+            "adrenals", "cortisol", "dhea", "igf-1", "shbg",
+            "testosterone", "free testosterone", "estradiol (e2)", "psa",
+            # Rollup labels
+            "endocrine and metabolic health: degenerative", "endocrine and metabolic health: post-infective",
+            "endocrine and metabolic health: inflammation", "endocrine and metabolic health: traumatic issues",
+            "endocrine and metabolic health: tumours", "endocrine and metabolic health: infective-active",
+            "endocrine and metabolic health: ischemic causes", "endocrine and metabolic health: congenital causes",
         ],
     },
     {
@@ -72,7 +84,8 @@ ORGAN_DEFINITIONS = [
         ],
     },
     {
-        "organ_name": 'Brain & Cognitive Health',
+        # Merged: Brain & Cognitive + Mental & Stress Resilience
+        "organ_name": 'Brain & Mental Health',
         "icon": '🧠',
         "display_order": 4,
         "gender": 'U',
@@ -82,7 +95,7 @@ ORGAN_DEFINITIONS = [
             "orbital fat", "optic nerve", "globes", "orbits",
             "maxillary sinuses", "frontal sinuses", "paranasal sinuses", "veins",
             "meninges", "pons", "midbrain", "ventricles",
-            "basal ganglia", "white matter hyperintensity",
+            "basal ganglia", "white matter hyperintensity", "brain: tumours",
         ],
     },
     {
@@ -110,42 +123,35 @@ ORGAN_DEFINITIONS = [
         ],
     },
     {
-        "organ_name": 'Inflammation & Immune Health',
-        "icon": '🛡️',
+        # Merged: General Health, Blood & Nutrients + Inflammation & Immune Health
+        "organ_name": 'Blood, Immunity & Nutrition',
+        "icon": '🩸',
         "display_order": 6,
         "gender": 'U',
         "params": [
-            "homocysteine levels", "basophils", "monocytes", "lymphocytes",
-            "eosinophils", "ige", "neck lymphnodes", "basophils - count",
-            "monocytes - count", "lymphocytes - count", "eosinophils - count", "hs-crp",
-            "neutrophils", "neutrophils - count", "c reactive protein", "c-reactive protein",
-            "crp", "lymph %", "lymphocyte %", "lymphocyte percentage",
-            "lymphocytes %", "fibrinogen", "esr", "vitamin e",
-            "d-dimer", "anti-tg",
-        ],
-    },
-    {
-        "organ_name": 'General Health, Blood & Nutrients',
-        "icon": '🩸',
-        "display_order": 7,
-        "gender": 'U',
-        "params": [
-            "gynoid fat", "visceral fat mass", "basophils", "monocytes",
-            "lymphocytes", "eosinophils", "vitamin d", "copper",
-            "folate (b9)", "android:gynoid ratio", "android fat", "bmi",
-            "body fat", "abdominal wall", "iron % saturation", "rbc",
-            "calcium", "leukocytes", "iron", "tibc",
-            "vitamin a", "zinc", "selenium", "wbc",
-            "mpv", "hemoglobin", "platelet count", "hematocrit",
-            "mcv", "rdw", "mch", "mchc",
-            "uibc", "basophils - count", "plateletcrit (pct)", "nucleated rbc %",
-            "nucleated rbc", "immature granulocytes %", "immature granulocytes", "rdw-sd",
-            "plcr", "pdw", "monocytes - count", "lymphocytes - count",
-            "eosinophils - count", "vitamin b12", "neutrophils", "magnesium, rbc",
-            "ferritin", "neutrophils - count", "rsmi", "lean mass",
-            "peritoneum", "general health, blood and nutrients", "lymph %", "lymphocyte %",
-            "lymphocyte percentage", "lymphocytes %", "phosphorus", "vitamin e",
-            "ldh", "cea",
+            # Body composition (also overlaps with Endocrine; resolve next pass)
+            "gynoid fat", "visceral fat mass", "android:gynoid ratio", "android fat",
+            "bmi", "body fat",
+            # CBC (counts + diff %)
+            "rbc", "wbc", "leukocytes", "hemoglobin", "hematocrit", "mcv", "rdw", "mch", "mchc",
+            "platelet count", "plateletcrit (pct)", "mpv", "pdw", "plcr", "rdw-sd",
+            "nucleated rbc", "nucleated rbc %", "immature granulocytes", "immature granulocytes %",
+            "basophils", "basophils - count", "eosinophils", "eosinophils - count",
+            "lymphocytes", "lymphocytes - count", "monocytes", "monocytes - count",
+            "neutrophils", "neutrophils - count",
+            "lymph %", "lymphocyte %", "lymphocyte percentage", "lymphocytes %",
+            # Inflammation / immunity markers
+            "hs-crp", "c reactive protein", "c-reactive protein", "crp",
+            "esr", "fibrinogen", "d-dimer", "ige", "homocysteine levels",
+            "neck lymphnodes",
+            # Nutrients
+            "iron", "iron % saturation", "tibc", "uibc", "ferritin",
+            "vitamin a", "vitamin b12", "vitamin d", "vitamin e",
+            "folate (b9)", "copper", "zinc", "selenium", "magnesium, rbc",
+            "calcium", "phosphorus",
+            # Misc / structural
+            "abdominal wall", "peritoneum", "lean mass", "rsmi", "ldh", "cea",
+            "general health, blood and nutrients",
         ],
     },
     {
@@ -154,7 +160,7 @@ ORGAN_DEFINITIONS = [
         # parameters now live exclusively in those two organs.
         "organ_name": 'Bone, Muscle & Joint Health',
         "icon": '🦴',
-        "display_order": 9,
+        "display_order": 7,
         "gender": 'U',
         "params": [
             "spine: discs", "spine curvature", "mineral bone density(z-score)", "mineral bone density(t-score)",
@@ -170,7 +176,7 @@ ORGAN_DEFINITIONS = [
     {
         "organ_name": 'Lung & Respiratory Health',
         "icon": '🫁',
-        "display_order": 10,
+        "display_order": 8,
         "gender": 'U',
         "params": [
             "neck lymphnodes", "pulmonary fibrosis", "copd / emphysema", "lung vasculature",
@@ -184,7 +190,7 @@ ORGAN_DEFINITIONS = [
     {
         "organ_name": 'Vascular Health',
         "icon": '🩺',
-        "display_order": 11,
+        "display_order": 9,
         "gender": 'U',
         "params": [
             # Peripheral vessels only — coronary calcium lives under Heart Health
@@ -197,33 +203,13 @@ ORGAN_DEFINITIONS = [
             "fat mass index", "trunk:limb fat ratio",
         ],
     },
-    {
-        "organ_name": 'Hormonal & Vitality Health',
-        "icon": '⚗️',
-        "display_order": 12,
-        "gender": 'U',
-        "params": [
-            "cortisol", "dhea", "tpo", "psa",
-            "tsh", "thyroxine (t4) free", "triiodothyronine (t3) free", "testosterone",
-            "adrenals", "thyroid", "free testosterone", "shbg",
-            "estradiol (e2)", "igf-1", "reverse t3", "anti-tg",
-        ],
-    },
-    {
-        "organ_name": 'Mental & Stress Resilience',
-        "icon": '🧘',
-        "display_order": 13,
-        "gender": 'U',
-        "params": [
-            "cortisol", "dhea", "brain: ischemic causes", "cerebral white matter",
-            "brain: degenerative", "meninges", "pons", "midbrain",
-            "ventricles", "basal ganglia", "white matter hyperintensity",
-        ],
-    },
+    # Hormonal & Vitality Health merged into Endocrine & Hormonal Health
+    # Mental & Stress Resilience merged into Brain & Mental Health
+    # Inflammation & Immune Health merged into Blood, Immunity & Nutrition
     {
         "organ_name": "Women's Health",
         "icon": '🌸',
-        "display_order": 14,
+        "display_order": 10,
         "gender": 'F',
         "params": [
             "estradiol (e2)", "ca-125", "fsh", "lh",
@@ -237,7 +223,7 @@ ORGAN_DEFINITIONS = [
     {
         "organ_name": "Men's Health",
         "icon": '🔵',
-        "display_order": 15,
+        "display_order": 11,
         "gender": 'M',
         "params": [
             "psa", "testosterone", "free testosterone", "shbg",

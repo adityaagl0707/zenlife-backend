@@ -57,14 +57,13 @@ def seed_demo():
     # ── Organ Scores ──────────────────────────────────────────────────────
     organs = [
         ("Heart Health", "critical", "Urgent Medical Attention", 1, 10, 0, 27, "❤️", 0),
-        ("Endocrine & Metabolic Health", "major", "High Health Risk", 0, 2, 7, 19, "⚡", 1),
+        ("Endocrine & Hormonal Health", "major", "High Health Risk", 0, 2, 7, 19, "⚡", 1),
         ("Liver & Digestive Health", "minor", "Mild Health Concern", 0, 0, 4, 47, "🫁", 2),
-        ("Brain & Cognitive Health", "minor", "Mild Health Concern", 0, 0, 4, 42, "🧠", 3),
+        ("Brain & Mental Health", "minor", "Mild Health Concern", 0, 0, 4, 42, "🧠", 3),
         ("Kidney & Urinary Health", "minor", "Mild Health Concern", 0, 0, 3, 49, "🫘", 4),
-        ("Inflammation & Immune Health", "minor", "Mild Health Concern", 0, 0, 6, 2, "🛡️", 5),
-        ("General Health, Blood & Nutrients", "minor", "Mild Health Concern", 0, 0, 4, 41, "🩸", 6),
-        ("Bone, Muscle & Joint Health", "minor", "Mild Health Concern", 0, 0, 3, 22, "🦴", 8),
-        ("Lung & Respiratory Health", "normal", "Healthy and Stable", 0, 0, 1, 18, "🫧", 9),
+        ("Blood, Immunity & Nutrition", "minor", "Mild Health Concern", 0, 0, 6, 41, "🩸", 5),
+        ("Bone, Muscle & Joint Health", "minor", "Mild Health Concern", 0, 0, 3, 22, "🦴", 6),
+        ("Lung & Respiratory Health", "normal", "Healthy and Stable", 0, 0, 1, 18, "🫧", 7),
     ]
     for (name, sev, label, crit, maj, minor, norm, icon, ord_n) in organs:
         mongo.OrganScore.insert({

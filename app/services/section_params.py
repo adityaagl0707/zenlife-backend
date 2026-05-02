@@ -114,7 +114,7 @@ SECTION_PARAMETERS = {
         {"name": "Fibrinogen", "unit": "mg/dL", "normal": "200–400"},
         {"name": "D-Dimer", "unit": "µg/mL FEU", "normal": "<0.5"},
         {"name": "PT / INR", "unit": "INR", "normal": "0.8–1.1"},
-        # Hormonal & Vitality
+        # Hormonal markers
         {"name": "Free Testosterone", "unit": "pg/mL", "normal": "9–30(M) / 0.3–1.9(F)"},
         {"name": "SHBG", "unit": "nmol/L", "normal": "10–57(M) / 18–144(F)"},
         {"name": "Estradiol (E2)", "unit": "pg/mL", "normal": "20–150(M) / varies(F)"},
