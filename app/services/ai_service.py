@@ -193,6 +193,22 @@ def build_report_context(report) -> str:
     organs = mongo.OrganScore.find({"report_id": report["id"]})
     order = mongo.Order.find_one({"id": report["order_id"]}) or {}
 
+    # Strip findings the patient should never see (wrong gender, or admin
+    # explicitly ignored) so Zeno doesn't reference them in chat replies.
+    from .section_params import SECTION_PARAMETERS, _gender_norm
+    g = _gender_norm(order.get("patient_gender"))
+    excluded_names = set()
+    if g:
+        for plist in SECTION_PARAMETERS.values():
+            for p in plist:
+                pg = (p.get("gender") or "").upper()
+                if pg in ("M", "F") and pg != g:
+                    excluded_names.add(p["name"].lower().strip())
+    ignored = {n.lower().strip() for n in (report.get("ignored_params") or [])}
+    findings = [f for f in findings
+                if f.name.lower().strip() not in excluded_names
+                and f.name.lower().strip() not in ignored]
+
     critical = [f for f in findings if f.severity == "critical"]
     major    = [f for f in findings if f.severity == "major"]
     minor    = [f for f in findings if f.severity == "minor"]
