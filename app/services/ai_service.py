@@ -1,7 +1,7 @@
 """Zeno AI — ZenLife's health intelligence assistant.
 
 Chat: Google Gemini 2.0 Flash (fast, free-tier friendly)
-Report extraction + health priorities: Anthropic Claude (better at structured JSON)
+Report extraction + health priorities: AI engine
 """
 import base64
 import datetime
@@ -339,7 +339,7 @@ def chat_with_zeno(report, user_message: str) -> str:
 
 def extract_report_parameters(section_type: str, file_b64: str, file_mime: str, gender=None) -> dict:
     """
-    Use Claude vision/document to extract parameter values from an uploaded report file.
+    Use the AI engine to extract parameter values from an uploaded report file.
     Returns {param_name: {value, unit, normal, severity, clinical_findings, recommendations}}.
     Also classifies each value as critical/major/minor/normal and generates AI clinical findings + recommendations.
     """
@@ -503,7 +503,7 @@ def _repair_truncated_json(text: str):
 
 def generate_priorities(report, findings: list, organs: list) -> list:
     """
-    Use Claude to generate 3-5 prioritised health action plans for the patient.
+    Use the AI engine to generate 3-5 prioritised health action plans for the patient.
     Returns a list of dicts: {title, why_important, diet, exercise, sleep, supplements}.
     """
     if not settings.anthropic_api_key:
@@ -561,7 +561,7 @@ Return ONLY a valid JSON array (no markdown):
             messages=[{"role": "user", "content": prompt}],
         )
     except Exception as e:
-        print(f"[generate_priorities] Anthropic API error: {e}")
+        print(f"[generate_priorities] AI engine error: {e}")
         return []
 
     raw = (response.content[0].text or "").strip()

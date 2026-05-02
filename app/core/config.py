@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     otp_expire_minutes: int = 10
     mock_otp: str = "123456"
 
-    # Anthropic (report extraction + health priorities)
+    # AI engine API key (report extraction + health priorities)
     anthropic_api_key: str = ""
 
     # Google Gemini (Zeno AI chat)

@@ -3,7 +3,7 @@ Body Age calculation service.
 
 Uses:
 1. PhenoAge (Levine et al. 2018) — scientifically validated formula using 9 blood biomarkers
-2. Claude AI synthesis — combines PhenoAge + DEXA + cardiac calcium + other markers for ZenAge
+2. AI synthesis — combines PhenoAge + DEXA + cardiac calcium + other markers for ZenAge
 """
 import math
 import re
@@ -166,18 +166,18 @@ def calculate_pheno_age(findings: list) -> dict:
 
 def calculate_zen_age(report, findings: list, pheno_result: dict) -> dict:
     """
-    Use Claude AI to synthesize a comprehensive ZenAge from all available data.
+    Use the AI engine to synthesize a comprehensive ZenAge from all available data.
     Combines PhenoAge with DEXA, cardiac calcium, metabolic markers, organ scores, etc.
     """
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-    # Build a rich context for Claude. `report` is a Mongo dict — load the order
+    # Build a rich context for the AI engine. `report` is a Mongo dict — load the order
     from ..core import mongo
     order = mongo.Order.find_one({"id": report.get("order_id") if isinstance(report, dict) else getattr(report, "order_id", None)}) or {}
     actual_age = order.get("patient_age")
     gender = order.get("patient_gender", "Unknown")
 
-    # Gather all findings with values for Claude
+    # Gather all findings with values for the AI engine
     findings_summary = []
     for f in findings:
         if f.value:
