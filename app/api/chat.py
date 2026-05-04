@@ -24,11 +24,19 @@ class ChatRequest(BaseModel):
 
 
 def _user_owns_report(report_id: int, user_id: int):
-    """Returns the report dict if it exists and belongs to the user, else None."""
+    """Returns the report dict if it belongs to the user, else None.
+
+    Two ownership paths:
+      - ZenScan reports: linked via order.user_id
+      - Self-uploaded reports (source='self_uploaded'): linked directly via
+        report.user_id, no order at all
+    """
     report = mongo.Report.find_one({"id": report_id})
     if not report:
         return None
-    order = mongo.Order.find_one({"id": report["order_id"]})
+    if report.get("source") == "self_uploaded":
+        return report if report.get("user_id") == user_id else None
+    order = mongo.Order.find_one({"id": report.get("order_id")})
     if not order or order.get("user_id") != user_id:
         return None
     return report
