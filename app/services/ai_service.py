@@ -191,7 +191,17 @@ You are NOT a replacement for in-person care. When something truly needs a speci
 def build_report_context(report) -> str:
     findings = mongo.Finding.find({"report_id": report["id"]})
     organs = mongo.OrganScore.find({"report_id": report["id"]})
-    order = mongo.Order.find_one({"id": report["order_id"]}) or {}
+    # Self-uploaded reports have no order — fall back to the user record
+    # for demographic context. ZenScan reports use the order as before.
+    if report.get("source") == "self_uploaded":
+        user = mongo.User.find_one({"id": report.get("user_id")}) or {}
+        order = {
+            "patient_name": user.get("name") or "Patient",
+            "patient_age": user.get("age"),
+            "patient_gender": user.get("gender"),
+        }
+    else:
+        order = mongo.Order.find_one({"id": report.get("order_id")}) or {}
 
     # Strip findings the patient should never see (wrong gender, or admin
     # explicitly ignored) so Zeno doesn't reference them in chat replies.
