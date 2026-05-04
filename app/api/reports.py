@@ -41,11 +41,31 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 def _report_or_404(report_id: int, user) -> dict:
-    """Fetch a report and ensure it belongs to the current user. Returns dict
-    with the report fields plus its embedded `order` for convenience."""
+    """Fetch a report and ensure it belongs to the current user.
+
+    Two ownership models:
+      - ZenScan reports: linked via Order.user_id
+      - Self-uploaded reports (source='self_uploaded'): linked directly
+        via Report.user_id, no order
+    """
     report = mongo.Report.find_one({"id": report_id})
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+
+    if report.get("source") == "self_uploaded":
+        if report.get("user_id") != user["id"]:
+            raise HTTPException(status_code=404, detail="Report not found")
+        # Synthesise an order-shaped dict from the user record so the
+        # rendering path stays uniform.
+        report["order"] = {
+            "patient_name": user.get("name") or "You",
+            "patient_age": user.get("age"),
+            "patient_gender": user.get("gender"),
+            "booking_id": "—",
+            "zen_id": user.get("zen_id"),
+        }
+        return report
+
     order = mongo.Order.find_one({"id": report["order_id"]})
     if not order or order.get("user_id") != user["id"]:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -99,6 +119,8 @@ def get_report(report_id: int, current_user=Depends(get_current_user)):
         "finding_counts": finding_counts,
         "ignored_params": r.get("ignored_params") or [],
         "health_plan": r.get("health_plan") or None,
+        "source": r.get("source") or "zenscan",
+        "uploaded_sections": r.get("uploaded_sections") or [],
     }
 
 

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core import mongo
 from app.core.config import get_settings
-from app.api import auth, orders, reports, chat, admin
+from app.api import auth, orders, reports, chat, admin, self_upload
 from app.services.seed_service import seed_demo
 
 settings = get_settings()
@@ -42,6 +42,7 @@ app.include_router(orders.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(self_upload.router, prefix="/api/v1")
 
 
 @app.on_event("startup")
