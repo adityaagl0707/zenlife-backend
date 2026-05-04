@@ -72,7 +72,20 @@ def ensure_indexes() -> None:
     orders.create_index("booking_id", unique=True)
     orders.create_index("user_id")
     reports.create_index("id", unique=True)
-    reports.create_index("order_id", unique=True)
+    # order_id is unique for ZenScan reports but absent / null for
+    # self-uploaded reports — partial unique index excludes those rows
+    # so multiple self-uploaded reports (one per user) don't collide on
+    # the `null` value.
+    try:
+        reports.drop_index("order_id_1")
+    except Exception:
+        pass
+    reports.create_index(
+        "order_id",
+        unique=True,
+        partialFilterExpression={"order_id": {"$exists": True, "$type": "number"}},
+    )
+    reports.create_index("user_id")
     organ_scores.create_index("report_id")
     findings.create_index("report_id")
     health_priorities.create_index("report_id")
