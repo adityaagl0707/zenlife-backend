@@ -172,16 +172,25 @@ def start(current_user=Depends(get_current_user)):
 
 @router.get("/status")
 def status(current_user=Depends(get_current_user)):
-    """Returns the user's self-uploaded report metadata if one exists.
-    Read-only — does NOT create a report. Used by the dashboard to decide
-    whether to render the existing-reports card vs the empty-state CTA."""
+    """Returns the user's self-uploaded report metadata.
+
+    Two flags drive the dashboard:
+      - exists: a Report document exists in DB (may still be empty)
+      - is_visible: the patient has uploaded at least one section AND has
+        clicked 'View my report' (finalized) at least once. Only when this
+        is True should the dashboard render the SelfReportEntry card; the
+        banner (entry point) is always shown by the dashboard regardless.
+    """
     r = mongo.Report.find_one({"user_id": current_user["id"], "source": "self_uploaded"})
     if not r:
-        return {"exists": False}
+        return {"exists": False, "is_visible": False}
+    uploaded = r.get("uploaded_sections") or []
+    is_visible = bool(uploaded) and bool(r.get("finalized_at"))
     return {
         "exists": True,
+        "is_visible": is_visible,
         "report_id": r["id"],
-        "uploaded_sections": r.get("uploaded_sections") or [],
+        "uploaded_sections": uploaded,
         "coverage_index": r.get("coverage_index") or 0,
         "overall_severity": r.get("overall_severity") or "normal",
         "report_date": r.get("report_date").strftime("%d %b %Y") if r.get("report_date") else None,
@@ -305,6 +314,11 @@ def finalize(report_id: int, current_user=Depends(get_current_user)):
             plan = generate_health_plan(r, findings, organs, saved_priorities)
             if plan:
                 update["health_plan"] = plan
+
+    # Mark that the patient has clicked through to view at least once. This
+    # is the gate the dashboard uses before rendering the SelfReportEntry
+    # card — uploads alone are not enough.
+    update["finalized_at"] = datetime.now()
 
     mongo.Report.update_one({"id": report_id}, {"$set": update})
 
