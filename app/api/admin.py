@@ -144,15 +144,19 @@ def list_patients():
         # Self-uploaded report (patient-initiated, no order). Only counts
         # once finalized (otherwise unfinalized drafts would inflate
         # admin's view). See self_upload.finalize().
+        # Soft-deleted reports (deleted_at set) still show on admin so
+        # support can see the tombstone, but are gated out of patient flows.
         sr = mongo.Report.find_one({"user_id": u["id"], "source": "self_uploaded"})
-        sr_finalized = bool(sr and sr.get("finalized_at"))
+        sr_deleted = bool(sr and sr.get("deleted_at"))
+        sr_finalized = bool(sr and sr.get("finalized_at") and not sr_deleted)
         self_report = None
-        if sr_finalized:
+        if sr and (sr_finalized or sr_deleted):
             self_report = {
                 "report_id": sr["id"],
                 "uploaded_sections": sr.get("uploaded_sections") or [],
                 "coverage_index": sr.get("coverage_index") or 0,
                 "overall_severity": sr.get("overall_severity") or "normal",
+                "deleted": sr_deleted,
             }
 
         result.append({

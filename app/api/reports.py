@@ -51,6 +51,10 @@ def _report_or_404(report_id: int, user) -> dict:
     report = mongo.Report.find_one({"id": report_id})
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    # Soft-deleted self-reports stay in the DB as tombstones for admin
+    # but should be invisible to the patient and report-rendering paths.
+    if report.get("deleted_at"):
+        raise HTTPException(status_code=410, detail="Report deleted")
 
     if report.get("source") == "self_uploaded":
         if report.get("user_id") != user["id"]:

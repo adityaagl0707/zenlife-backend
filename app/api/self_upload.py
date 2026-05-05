@@ -31,12 +31,16 @@ def _placeholder(v: Optional[str]) -> bool:
 def _get_or_create_self_report(user_id: int) -> dict:
     """Each user has one self-uploaded report at a time. We grow it
     section-by-section as the patient uploads more. (Multiple-report
-    support is Phase 4.)"""
+    support is Phase 4.)
+
+    Soft-deleted reports (deleted_at set) are skipped so the patient
+    can start fresh after deleting their previous one. Admin still sees
+    the tombstone via /admin/patients."""
     existing = mongo.Report.find_one({
         "user_id": user_id,
         "source": "self_uploaded",
     })
-    if existing:
+    if existing and not existing.get("deleted_at"):
         return existing
 
     report = {
@@ -57,7 +61,7 @@ def _get_or_create_self_report(user_id: int) -> dict:
 
 def _user_owns_self_report(report_id: int, user_id: int) -> Optional[dict]:
     r = mongo.Report.find_one({"id": report_id, "source": "self_uploaded"})
-    if not r or r.get("user_id") != user_id:
+    if not r or r.get("user_id") != user_id or r.get("deleted_at"):
         return None
     return r
 
@@ -182,7 +186,7 @@ def status(current_user=Depends(get_current_user)):
         banner (entry point) is always shown by the dashboard regardless.
     """
     r = mongo.Report.find_one({"user_id": current_user["id"], "source": "self_uploaded"})
-    if not r:
+    if not r or r.get("deleted_at"):
         return {"exists": False, "is_visible": False}
     uploaded = r.get("uploaded_sections") or []
     is_visible = bool(uploaded) and bool(r.get("finalized_at"))
@@ -332,12 +336,16 @@ def finalize(report_id: int, current_user=Depends(get_current_user)):
 
 @router.delete("/{report_id}")
 def delete_self_report(report_id: int, current_user=Depends(get_current_user)):
-    """Patient-initiated deletion of their self-uploaded report.
+    """Patient-initiated soft-delete of their self-uploaded report.
 
-    Removes the report and ALL derived data (findings, sections, organ
-    scores, body age, priorities, chat messages, consultation notes).
-    Only the owner can delete; ZenScan reports cannot be deleted via this
-    endpoint (must be source='self_uploaded').
+    We don't hard-delete because admin still wants to see a tombstone
+    ("Report Deleted") on the patient card — useful for support and
+    to know that the patient had a report and chose to remove it.
+
+    Derived data (findings, sections, organ scores, body age,
+    priorities, chat messages, consultation notes) IS hard-deleted to
+    free storage and avoid leaking PHI through stray queries; only the
+    Report doc itself stays as a marker with `deleted_at` set.
     """
     r = _user_owns_self_report(report_id, current_user["id"])
     if not r:
@@ -350,5 +358,15 @@ def delete_self_report(report_id: int, current_user=Depends(get_current_user)):
     mongo.HealthPriority.delete_many({"report_id": report_id})
     mongo.ChatMessage.delete_many({"report_id": report_id})
     mongo.ConsultationNote.delete_many({"report_id": report_id})
-    mongo.Report.delete_one({"id": report_id})
+    mongo.Report.update_one(
+        {"id": report_id},
+        {"$set": {
+            "deleted_at": datetime.now(),
+            "uploaded_sections": [],
+            "coverage_index": 0,
+            "overall_severity": "normal",
+            "health_plan": None,
+            "is_published": False,
+        }},
+    )
     return {"deleted": True}
