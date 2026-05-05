@@ -97,16 +97,20 @@ class CreateNote(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-def _compute_patient_status(orders_meta: list[dict]) -> str:
-    """Compute a single status for the patient from their orders.
-    - registered_unpaid: no orders yet (just signed up)
-    - paid_test_pending: order exists but tests not yet complete
-    - test_done_report_awaited: tests complete but report not published
-    - report_published: published report exists
-    Picks the "most progressed" status across the patient's orders.
+def _compute_patient_status(orders_meta: list[dict], has_self_report: bool = False) -> str:
+    """Compute a single status for the patient.
+    - registered_unpaid: no orders, no self-uploaded report
+    - self_uploaded_report: patient has a finalized self-uploaded report
+        and no ZenScan orders. Surfaces patients who self-served instead
+        of (or before) booking a ZenScan.
+    - paid_test_pending: ZenScan order exists but tests not yet complete
+    - test_done_report_awaited: tests complete but ZenScan report not published
+    - report_published: published ZenScan report exists
+    ZenScan progression always wins over self_uploaded_report — once a
+    patient has a clinic order, that's the more meaningful status.
     """
     if not orders_meta:
-        return "registered_unpaid"
+        return "self_uploaded_report" if has_self_report else "registered_unpaid"
     if any(o.get("is_published") for o in orders_meta):
         return "report_published"
     if any(o.get("tests_complete") and not o.get("is_published") for o in orders_meta):
@@ -137,6 +141,20 @@ def list_patients():
                 "is_published": bool(r.get("is_published")) if r else False,
                 "tests_complete": tests_complete,
             })
+        # Self-uploaded report (patient-initiated, no order). Only counts
+        # once finalized (otherwise unfinalized drafts would inflate
+        # admin's view). See self_upload.finalize().
+        sr = mongo.Report.find_one({"user_id": u["id"], "source": "self_uploaded"})
+        sr_finalized = bool(sr and sr.get("finalized_at"))
+        self_report = None
+        if sr_finalized:
+            self_report = {
+                "report_id": sr["id"],
+                "uploaded_sections": sr.get("uploaded_sections") or [],
+                "coverage_index": sr.get("coverage_index") or 0,
+                "overall_severity": sr.get("overall_severity") or "normal",
+            }
+
         result.append({
             "id": u["id"],
             "phone": u.get("phone"),
@@ -145,7 +163,8 @@ def list_patients():
             "age": u.get("age"),
             "gender": u.get("gender"),
             "orders": order_list,
-            "status": _compute_patient_status(order_list),
+            "self_report": self_report,
+            "status": _compute_patient_status(order_list, has_self_report=sr_finalized),
         })
     return result
 
