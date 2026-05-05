@@ -328,3 +328,27 @@ def finalize(report_id: int, current_user=Depends(get_current_user)):
         "overall_severity": overall,
         "finding_counts": sev_counts,
     }
+
+
+@router.delete("/{report_id}")
+def delete_self_report(report_id: int, current_user=Depends(get_current_user)):
+    """Patient-initiated deletion of their self-uploaded report.
+
+    Removes the report and ALL derived data (findings, sections, organ
+    scores, body age, priorities, chat messages, consultation notes).
+    Only the owner can delete; ZenScan reports cannot be deleted via this
+    endpoint (must be source='self_uploaded').
+    """
+    r = _user_owns_self_report(report_id, current_user["id"])
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    mongo.Finding.delete_many({"report_id": report_id})
+    mongo.ReportSection.delete_many({"report_id": report_id})
+    mongo.OrganScore.delete_many({"report_id": report_id})
+    mongo.BodyAgeDoc.delete_many({"report_id": report_id})
+    mongo.HealthPriority.delete_many({"report_id": report_id})
+    mongo.ChatMessage.delete_many({"report_id": report_id})
+    mongo.ConsultationNote.delete_many({"report_id": report_id})
+    mongo.Report.delete_one({"id": report_id})
+    return {"deleted": True}
