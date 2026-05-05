@@ -5,7 +5,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
+from datetime import timedelta
 from ..core import mongo
+from ..core.security import create_access_token
 from ..services import auth_service
 from ..services.lab_classifier import parse_excel_lab_results, generate_template_excel, MARKERS, classify_severity
 from ..services.section_params import SECTION_PARAMETERS, SECTION_META, filter_params_by_gender, PARAM_PAIRS
@@ -116,6 +118,23 @@ def _compute_patient_status(orders_meta: list[dict], has_self_report: bool = Fal
     if any(o.get("tests_complete") and not o.get("is_published") for o in orders_meta):
         return "test_done_report_awaited"
     return "paid_test_pending"
+
+
+@router.post("/patients/{user_id}/impersonate")
+def impersonate_patient(user_id: int):
+    """Issue a short-lived JWT for `user_id` so admin can open the
+    patient-facing report in a new tab. Local-dev admin has no auth, so
+    this is intentionally unauthenticated like all other /admin/*
+    endpoints. Token is short-lived (30 min) and patient-scoped.
+    """
+    user = mongo.User.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    token = create_access_token(
+        {"sub": str(user_id)},
+        expires_delta=timedelta(minutes=30),
+    )
+    return {"access_token": token, "token_type": "bearer"}
 
 
 @router.get("/patients")
