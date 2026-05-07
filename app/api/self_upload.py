@@ -294,9 +294,10 @@ def finalize(report_id: int, current_user=Depends(get_current_user)):
         "overall_severity": overall,
     }
 
-    # Only run the AI plan/priorities once we have enough data — avoids
-    # generating advice from a single CBC. Threshold: 25% coverage.
-    if coverage >= 25.0 and findings:
+    # Generate the AI plan/priorities once the patient has uploaded at
+    # least one section — earlier we required 25% (2 of 8) but feedback
+    # was that even a single CBC should unlock priorities and a plan.
+    if coverage > 0 and findings:
         priorities = generate_priorities(r, findings, organs)
         if priorities:
             mongo.HealthPriority.delete_many({"report_id": report_id})
